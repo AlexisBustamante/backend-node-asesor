@@ -62,7 +62,8 @@ const allowedOrigins = [
   'http://localhost:5173',  // Vite dev server
   'http://localhost:4173',  // Vite preview
   'http://127.0.0.1:5173',  // Vite con IP
-  'http://127.0.0.1:4173'   // Vite preview con IP
+  'http://127.0.0.1:4173',  // Vite preview con IP
+  'https://pamelacossioasesora.netlify.app/' // Frontend en Netlify
 ];
 
 // Agregar FRONTEND_URL si está definido
