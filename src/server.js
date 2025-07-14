@@ -12,6 +12,7 @@ const { testConnection } = require('./config/database');
 
 // Importar rutas
 const apiRoutes = require('./routes');
+const publicRoutes = require('./routes/public');
 
 // Importar utilidades
 const { cleanupExpiredTokens } = require('./utils/jwt');
@@ -106,6 +107,9 @@ app.use((err, req, res, next) => {
     message: 'Error interno del servidor'
   });
 });
+
+// Configurar rutas públicas (sin prefijo /api)
+app.use('/', publicRoutes);
 
 // Configurar rutas de la API
 app.use('/api', apiRoutes);
