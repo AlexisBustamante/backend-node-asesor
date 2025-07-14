@@ -56,6 +56,22 @@ const runMigrations = async () => {
     `);
     console.log('✅ Tabla cotizacion creada/verificada');
 
+    // Crear tabla de tokens de refresh si no existe
+    await query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(500) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Tabla refresh_tokens creada/verificada');
+
+    // Crear índice para refresh_tokens
+    await query(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);`);
+    console.log('✅ Índice refresh_tokens creado/verificado');
+
     // Insertar roles básicos si no existen
     await query(`
       INSERT INTO roles (name, description) 
