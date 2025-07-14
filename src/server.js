@@ -16,6 +16,9 @@ const apiRoutes = require('./routes');
 // Importar utilidades
 const { cleanupExpiredTokens } = require('./utils/jwt');
 
+// Importar migraciones para producción
+const { runMigrations } = require('./database/migrate-prod');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -64,6 +67,11 @@ const allowedOrigins = [
 // Agregar FRONTEND_URL si está definido
 if (process.env.FRONTEND_URL) {
   allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+// Agregar BACK_URL_PROD si está definido
+if (process.env.BACK_URL_PROD) {
+  allowedOrigins.push(process.env.BACK_URL_PROD);
 }
 
 app.use(cors({
@@ -130,6 +138,12 @@ const startServer = async () => {
     if (!dbConnected) {
       console.error('❌ No se pudo conectar a la base de datos');
       process.exit(1);
+    }
+
+    // Ejecutar migraciones en producción
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔄 Ejecutando migraciones de producción...');
+      await runMigrations();
     }
 
     // Iniciar limpieza de tokens

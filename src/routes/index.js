@@ -21,12 +21,4 @@ router.get('/health', (req, res) => {
   });
 });
 
-router.get('/health2', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Servidor funcionando correctamente2',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
 module.exports = router; 

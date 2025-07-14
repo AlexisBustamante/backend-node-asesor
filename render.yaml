@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: back-asesoria-seguros
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: 587
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ADMIN_PASSWORD
+        value: 9z2fvdm4
+      - key: BACK_URL_PROD
+        sync: false
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+    databases:
+      - name: asesoria-seguros-db
+        databaseName: asesoria_seguros
+        user: asesoria_user
+
+databases:
+  - name: asesoria-seguros-db
+    databaseName: asesoria_seguros
+    user: asesoria_user
+    plan: starter 

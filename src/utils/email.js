@@ -19,7 +19,7 @@ const sendVerificationEmail = async (email, token, firstName) => {
   try {
     const transporter = createTransporter();
     
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
+    const verificationUrl = `${process.env.BACK_URL_PROD || process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
     
     const mailOptions = {
       from: process.env.EMAIL_FROM,
@@ -76,7 +76,7 @@ const sendPasswordResetEmail = async (email, token, firstName) => {
   try {
     const transporter = createTransporter();
     
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+    const resetUrl = `${process.env.BACK_URL_PROD || process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
     
     const mailOptions = {
       from: process.env.EMAIL_FROM,

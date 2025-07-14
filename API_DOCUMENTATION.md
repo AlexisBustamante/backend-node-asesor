@@ -917,6 +917,7 @@ REDIS_URL=redis://localhost:6379
 PORT=3000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
+BACK_URL_PROD=https://tu-app.onrender.com
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -941,6 +942,26 @@ Si necesitas agregar más orígenes, puedes:
    ```
 
 2. **O modificar directamente en `src/server.js`** agregando más URLs al array `allowedOrigins`.
+
+### Configuración de URLs
+
+El sistema usa diferentes variables de entorno para las URLs:
+
+- **`FRONTEND_URL`** - URL del frontend (desarrollo)
+- **`BACK_URL_PROD`** - URL del backend en producción (para enlaces en emails)
+
+**Ejemplo de configuración:**
+```env
+# Desarrollo
+FRONTEND_URL=http://localhost:5173
+
+# Producción
+BACK_URL_PROD=https://tu-app.onrender.com
+```
+
+**Uso en emails:**
+- Los enlaces de verificación y reset de contraseña usan `BACK_URL_PROD` en producción
+- Si `BACK_URL_PROD` no está definida, usa `FRONTEND_URL` como fallback
 
 ### Comandos de Desarrollo
 
