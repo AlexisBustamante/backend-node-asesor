@@ -89,8 +89,6 @@ const runMigrations = async () => {
     console.log('✅ Usuario admin creado/verificado');
 
     console.log('🎉 Migraciones completadas exitosamente');
-    console.log('📧 Email admin: desdevnode1@gmail.com');
-    console.log('🔑 Password admin: ' + adminPassword);
 
   } catch (error) {
     console.error('❌ Error ejecutando migraciones:', error);
