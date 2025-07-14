@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:password@db:5432/asesoria_seguros?sslmode=disable
+      - JWT_SECRET=20f68793aa14d14851d7627bd76892ebcdda63375ac7599135fadf8b1d726fa8
+      - JWT_REFRESH_SECRET=20f68793aa14d14851d7627bd76892ebcdda63375ac7599135fadf8b1d726fa8
+      - EMAIL_HOST=smtp.gmail.com
+      - EMAIL_PORT=587
+      - EMAIL_USER=noreply.asesoria.2025@gmail.com
+      - EMAIL_PASS=jubi gwmc unjc itwk
+    depends_on:
+      - db
+    volumes:
+      - ./uploads:/app/uploads
+      - ./src:/app/src
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=asesoria_seguros
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    command: postgres -c ssl=off
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data: 
