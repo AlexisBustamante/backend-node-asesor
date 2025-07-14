@@ -159,7 +159,7 @@ const startServer = async () => {
       console.log(`📡 Puerto: ${PORT}`);
       console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 URL: http://localhost:${PORT}`);
-      console.log(`📊 Health Check: http://localhost:${PORT}/health`);
+      console.log(`📊 Health Check: ${ process.env.NODE_ENV === 'production' ? process.env.BACK_URL_PROD : 'http://localhost'}:${PORT}/health`);
     });
 
   } catch (error) {
