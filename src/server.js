@@ -53,8 +53,31 @@ app.use(morgan('combined'));
 app.use(limiter);
 
 // Configuración de CORS
+const allowedOrigins = [
+  'http://localhost:3000',  // Frontend en puerto 3000
+  'http://localhost:5173',  // Vite dev server
+  'http://localhost:4173',  // Vite preview
+  'http://127.0.0.1:5173',  // Vite con IP
+  'http://127.0.0.1:4173'   // Vite preview con IP
+];
+
+// Agregar FRONTEND_URL si está definido
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como Postman, cURL, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🚫 CORS bloqueado para origen:', origin);
+      callback(new Error('No permitido por CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

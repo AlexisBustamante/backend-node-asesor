@@ -916,12 +916,31 @@ REDIS_URL=redis://localhost:6379
 # Servidor
 PORT=3000
 NODE_ENV=development
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:5173
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 ```
+
+### Configuración de CORS
+
+El servidor está configurado para permitir los siguientes orígenes:
+
+- `http://localhost:3000` - Frontend en puerto 3000
+- `http://localhost:5173` - Vite dev server (puerto por defecto)
+- `http://localhost:4173` - Vite preview
+- `http://127.0.0.1:5173` - Vite con IP
+- `http://127.0.0.1:4173` - Vite preview con IP
+
+Si necesitas agregar más orígenes, puedes:
+
+1. **Usar la variable de entorno:**
+   ```env
+   FRONTEND_URL=http://tu-dominio.com
+   ```
+
+2. **O modificar directamente en `src/server.js`** agregando más URLs al array `allowedOrigins`.
 
 ### Comandos de Desarrollo
 
