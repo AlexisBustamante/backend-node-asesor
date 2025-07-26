@@ -1,52 +1,71 @@
 const fs = require('fs').promises;
 const path = require('path');
+const emailConfig = require('../config/emailConfig');
 
 /**
- * Renderiza un archivo HTML desde la carpeta views
- * @param {string} filename - Nombre del archivo HTML (sin extensión)
- * @param {Object} data - Datos para reemplazar en el template
- * @returns {Promise<string>} - Contenido HTML renderizado
+ * Renderiza un template HTML reemplazando las variables con los datos proporcionados
+ * @param {string} templatePath - Ruta al archivo template
+ * @param {object} data - Datos para reemplazar en el template
+ * @returns {string} - HTML renderizado
  */
-const renderHTML = async (filename, data = {}) => {
+const renderTemplate = async (templatePath, data) => {
   try {
-    const filePath = path.join(__dirname, '../views', `${filename}.html`);
-    let html = await fs.readFile(filePath, 'utf8');
+    // Leer el template
+    const template = await fs.readFile(templatePath, 'utf8');
     
-    // Reemplazar variables en el template si se proporcionan datos
-    if (data && typeof data === 'object') {
-      Object.keys(data).forEach(key => {
-        const regex = new RegExp(`{{${key}}}`, 'g');
-        html = html.replace(regex, data[key]);
-      });
-    }
+    // Reemplazar las variables del template
+    let html = template;
+    
+    // Reemplazar variables simples
+    Object.keys(data).forEach(key => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      html = html.replace(regex, data[key] || '');
+    });
+    
+    // Reemplazar condicionales {{#if campo}}...{{/if}}
+    html = html.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, field, content) => {
+      return data[field] ? content : '';
+    });
     
     return html;
   } catch (error) {
-    console.error(`Error renderizando HTML ${filename}:`, error);
-    throw new Error(`No se pudo cargar la plantilla ${filename}`);
+    console.error('Error renderizando template:', error);
+    throw error;
   }
 };
 
 /**
- * Renderiza la página de email verificado exitosamente
- * @param {Object} data - Datos adicionales para la página
- * @returns {Promise<string>} - HTML de la página de éxito
+ * Renderiza el email de confirmación para el cliente
+ * @param {object} cotizacionData - Datos de la cotización
+ * @returns {string} - HTML del email
  */
-const renderEmailVerified = async (data = {}) => {
-  return await renderHTML('emailVerified', data);
+const renderEmailCliente = async (cotizacionData) => {
+  const templatePath = path.join(__dirname, '../views/emailCotizacionCliente.html');
+  // Agregar la URL del logo a los datos
+  const dataWithLogo = {
+    ...cotizacionData,
+    logoUrl: emailConfig.logoUrl
+  };
+  return await renderTemplate(templatePath, dataWithLogo);
 };
 
 /**
- * Renderiza la página de error en verificación de email
- * @param {Object} data - Datos adicionales para la página
- * @returns {Promise<string>} - HTML de la página de error
+ * Renderiza el email de notificación para el administrador
+ * @param {object} cotizacionData - Datos de la cotización
+ * @returns {string} - HTML del email
  */
-const renderEmailVerificationError = async (data = {}) => {
-  return await renderHTML('emailVerificationError', data);
+const renderEmailAdmin = async (cotizacionData) => {
+  const templatePath = path.join(__dirname, '../views/emailCotizacionAdmin.html');
+  // Agregar la URL del logo a los datos
+  const dataWithLogo = {
+    ...cotizacionData,
+    logoUrl: emailConfig.logoUrl
+  };
+  return await renderTemplate(templatePath, dataWithLogo);
 };
 
 module.exports = {
-  renderHTML,
-  renderEmailVerified,
-  renderEmailVerificationError
+  renderTemplate,
+  renderEmailCliente,
+  renderEmailAdmin
 }; 

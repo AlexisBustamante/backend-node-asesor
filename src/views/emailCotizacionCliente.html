@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmación de Cotización - Pamela Cossio</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f8f9fa;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+        <!-- Header -->
+        <div style="background-color: #3f7575; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <!-- Logo -->
+            <div style="margin-bottom: 20px;">
+                <img src="{{logoUrl}}" alt="Pamela Cossio Logo" style="max-width: 150px; height: auto; border-radius: 8px;">
+            </div>
+            <h1 style="margin: 0; font-size: 28px;">¡Gracias por tu interés!</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Pamela Cossio - Asesora de Salud Previsional</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #3f7575; margin-top: 0;">Hola {{nombre}} {{apellidos}},</h2>
+            
+            <p>Hemos recibido tu solicitud de cotización exitosamente. Nuestro equipo revisará tu información y te contactaremos en las próximas 24 horas.</p>
+            
+            <!-- Resumen de datos -->
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3f7575;">
+                <h3 style="color: #3f7575; margin-top: 0;">📋 Resumen de tu solicitud:</h3>
+                <p><strong>ID de Cotización:</strong> <span style="background-color: #3f7575; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;">{{cotizacion_id}}</span></p>
+                <p><strong>Nombre:</strong> {{nombre}} {{apellidos}}</p>
+                {{#if edad}}<p><strong>Edad:</strong> {{edad}} años</p>{{/if}}
+                <p><strong>Teléfono:</strong>+56  {{telefono}}</p>
+                <p><strong>Email:</strong> {{email}}</p>
+                <p><strong>Isapre:</strong> {{isapre}}</p>
+                <p><strong>Valor mensual:</strong> {{valor_mensual}}</p>
+                <p><strong>Clínica:</strong> {{clinica}}</p>
+                <p><strong>Renta:</strong> {{renta}}</p>
+                {{#if numero_cargas}}<p><strong>Número de cargas:</strong> {{numero_cargas}}</p>{{/if}}
+                {{#if edades_cargas}}<p><strong>Edades de cargas:</strong> {{edades_cargas}}</p>{{/if}}
+                {{#if mensaje}}<p><strong>Mensaje:</strong> {{mensaje}}</p>{{/if}}
+            </div>
+            
+            <p>Te contactaremos por WhatsApp o teléfono para agendar una reunión y encontrar el mejor plan para ti.</p>
+            
+
+            <!-- Call to action -->
+            <div style="text-align: center; margin: 30px 0;">
+                <p style="color: #3f7575; font-weight: bold; font-size: 16px;">¡Puedes contar siempre con nosotros!</p>
+            </div>
+            
+            <!-- Footer -->
+            <div style="border-top: 2px solid #3f7575; padding-top: 20px; text-align: center;">
+                <p style="color: #666; font-size: 14px;">
+                    Pamela Cossio<br>
+                    Asesora previsional<br>
+                    📧 pamela.munozc@consalud.cl<br>
+                    📱 +56 9 4809 9714
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

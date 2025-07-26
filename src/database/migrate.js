@@ -137,12 +137,15 @@ const createTables = async () => {
         cotizacion_id VARCHAR(20) UNIQUE NOT NULL,
         nombre VARCHAR(100) NOT NULL,
         apellidos VARCHAR(100) NOT NULL,
+        edad INTEGER,
         telefono VARCHAR(30) NOT NULL,
         email VARCHAR(100) NOT NULL,
-        isapre_actual VARCHAR(100) NOT NULL,
-        cuanto_paga VARCHAR(50) NOT NULL,
-        clinica_preferencia VARCHAR(100) NOT NULL,
-        renta_imponible VARCHAR(50) NOT NULL,
+        isapre VARCHAR(100) NOT NULL,
+        valor_mensual VARCHAR(50),
+        clinica VARCHAR(100) NOT NULL,
+        renta VARCHAR(50) NOT NULL,
+        numero_cargas INTEGER DEFAULT 0,
+        edades_cargas TEXT,
         mensaje TEXT,
         estado VARCHAR(20) DEFAULT 'pendiente',
         fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -203,9 +206,147 @@ const createTables = async () => {
   }
 };
 
+// Función para actualizar la tabla cotizacion con nuevos campos
+const updateCotizacionTable = async () => {
+  try {
+    console.log('🔄 Actualizando tabla cotizacion con nuevos campos...');
+
+    // Verificar si los campos ya existen antes de agregarlos
+    const checkColumns = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'cotizacion' 
+      AND column_name IN ('edad', 'numero_cargas', 'edades_cargas')
+    `);
+
+    const existingColumns = checkColumns.rows.map(row => row.column_name);
+
+    // Agregar campo edad si no existe
+    if (!existingColumns.includes('edad')) {
+      await query(`ALTER TABLE cotizacion ADD COLUMN edad INTEGER;`);
+      console.log('✅ Campo "edad" agregado');
+    }
+
+    // Agregar campo numero_cargas si no existe
+    if (!existingColumns.includes('numero_cargas')) {
+      await query(`ALTER TABLE cotizacion ADD COLUMN numero_cargas INTEGER DEFAULT 0;`);
+      console.log('✅ Campo "numero_cargas" agregado');
+    }
+
+    // Agregar campo edades_cargas si no existe
+    if (!existingColumns.includes('edades_cargas')) {
+      await query(`ALTER TABLE cotizacion ADD COLUMN edades_cargas TEXT;`);
+      console.log('✅ Campo "edades_cargas" agregado');
+    }
+
+    // Renombrar campos existentes para mantener compatibilidad
+    // Verificar si existe isapre_actual y renombrarlo a isapre si es necesario
+    const checkIsapreActual = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'cotizacion' 
+      AND column_name = 'isapre_actual'
+    `);
+
+    if (checkIsapreActual.rows.length > 0) {
+      // Verificar si ya existe el campo isapre
+      const checkIsapre = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'cotizacion' 
+        AND column_name = 'isapre'
+      `);
+
+      if (checkIsapre.rows.length === 0) {
+        await query(`ALTER TABLE cotizacion ADD COLUMN isapre VARCHAR(100);`);
+        await query(`UPDATE cotizacion SET isapre = isapre_actual WHERE isapre IS NULL;`);
+        console.log('✅ Campo "isapre" agregado y migrado desde isapre_actual');
+      }
+    }
+
+    // Verificar si existe cuanto_paga y renombrarlo a valor_mensual si es necesario
+    const checkCuantoPaga = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'cotizacion' 
+      AND column_name = 'cuanto_paga'
+    `);
+
+    if (checkCuantoPaga.rows.length > 0) {
+      // Verificar si ya existe el campo valor_mensual
+      const checkValorMensual = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'cotizacion' 
+        AND column_name = 'valor_mensual'
+      `);
+
+      if (checkValorMensual.rows.length === 0) {
+        await query(`ALTER TABLE cotizacion ADD COLUMN valor_mensual VARCHAR(50);`);
+        await query(`UPDATE cotizacion SET valor_mensual = cuanto_paga WHERE valor_mensual IS NULL;`);
+        console.log('✅ Campo "valor_mensual" agregado y migrado desde cuanto_paga');
+      }
+    }
+
+    // Verificar si existe clinica_preferencia y renombrarlo a clinica si es necesario
+    const checkClinicaPreferencia = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'cotizacion' 
+      AND column_name = 'clinica_preferencia'
+    `);
+
+    if (checkClinicaPreferencia.rows.length > 0) {
+      // Verificar si ya existe el campo clinica
+      const checkClinica = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'cotizacion' 
+        AND column_name = 'clinica'
+      `);
+
+      if (checkClinica.rows.length === 0) {
+        await query(`ALTER TABLE cotizacion ADD COLUMN clinica VARCHAR(100);`);
+        await query(`UPDATE cotizacion SET clinica = clinica_preferencia WHERE clinica IS NULL;`);
+        console.log('✅ Campo "clinica" agregado y migrado desde clinica_preferencia');
+      }
+    }
+
+    // Verificar si existe renta_imponible y renombrarlo a renta si es necesario
+    const checkRentaImponible = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'cotizacion' 
+      AND column_name = 'renta_imponible'
+    `);
+
+    if (checkRentaImponible.rows.length > 0) {
+      // Verificar si ya existe el campo renta
+      const checkRenta = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'cotizacion' 
+        AND column_name = 'renta'
+      `);
+
+      if (checkRenta.rows.length === 0) {
+        await query(`ALTER TABLE cotizacion ADD COLUMN renta VARCHAR(50);`);
+        await query(`UPDATE cotizacion SET renta = renta_imponible WHERE renta IS NULL;`);
+        console.log('✅ Campo "renta" agregado y migrado desde renta_imponible');
+      }
+    }
+
+    console.log('✅ Actualización de tabla cotizacion completada');
+  } catch (error) {
+    console.error('❌ Error actualizando tabla cotizacion:', error);
+    throw error;
+  }
+};
+
 // Ejecutar migración si se llama directamente
 if (require.main === module) {
   createTables()
+    .then(() => updateCotizacionTable())
     .then(() => {
       console.log('🎉 Base de datos configurada correctamente');
       process.exit(0);
@@ -216,4 +357,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { createTables }; 
+module.exports = { createTables, updateCotizacionTable }; 

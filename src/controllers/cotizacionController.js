@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const nodemailer = require('nodemailer');
+const { renderEmailCliente, renderEmailAdmin } = require('../utils/htmlRenderer');
 require('dotenv').config();
 
 // Crear nueva cotización
@@ -9,28 +10,30 @@ const crearCotizacion = async (req, res) => {
     const {
       nombre,
       apellidos,
+      edad,
       telefono,
       email,
       isapre,
-      isapre_actual,
       valor_mensual,
-      cuanto_paga,
       clinica,
-      clinica_preferencia,
       renta,
-      renta_imponible,
+      numero_cargas,
+      edades_cargas,
       mensaje
     } = req.body;
 
-    // Usar los campos del frontend si existen, si no, los antiguos
-    const _isapre_actual = isapre_actual || isapre;
-    const _cuanto_paga = cuanto_paga || valor_mensual;
-    const _clinica_preferencia = clinica_preferencia || clinica;
-    const _renta_imponible = renta_imponible || renta;
 
-    // Validar campos requeridos
-    if (!nombre || !apellidos || !_clinica_preferencia || !email || !_isapre_actual || 
-        !_cuanto_paga || !_renta_imponible || !telefono) {
+    // Validar campos requeridos (verificando que no estén vacíos)
+    if (!nombre || nombre.trim() === '' || 
+        !edad || edad.toString().trim() === '' || 
+        !telefono || telefono.toString().trim() === '' || 
+        !email || email.trim() === '' || 
+        !isapre || isapre.trim() === '' || 
+        !clinica || clinica.trim() === '' || 
+        !renta || renta.toString().trim() === '' || 
+        !numero_cargas || numero_cargas.toString().trim() === '' || 
+        !edades_cargas || edades_cargas.toString().trim() === '') {
+      
       return res.status(400).json({
         success: false,
         message: 'Todos los campos marcados con * son obligatorios'
@@ -63,61 +66,39 @@ const crearCotizacion = async (req, res) => {
 
     // Insertar cotización en la base de datos
     const result = await query(`
-      INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, telefono, email, isapre_actual, 
-                             cuanto_paga, clinica_preferencia, renta_imponible, mensaje)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
+                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING id, cotizacion_id, nombre, apellidos, email, fecha_envio
-    `, [cotizacionId, nombre, apellidos, telefono, email, _isapre_actual, 
-        _cuanto_paga, _clinica_preferencia, _renta_imponible, mensaje]);
+    `, [cotizacionId, nombre, apellidos, edad, telefono, email, isapre, 
+        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje]);
 
     const cotizacion = result.rows[0];
 
-    // Enviar email de confirmación al cliente
+    // Preparar datos para el template del email del cliente
+    const emailClienteData = {
+      cotizacion_id: cotizacionId,
+      nombre,
+      apellidos,
+      edad,
+      telefono,
+      email,
+      isapre,
+      valor_mensual,
+      clinica,
+      renta,
+      numero_cargas,
+      edades_cargas,
+      mensaje
+    };
+
+    // Renderizar email del cliente
+    const emailClienteHtml = await renderEmailCliente(emailClienteData);
+
     const emailCliente = {
       to: email,
       subject: `¡Tu solicitud de cotización ha sido recibida! [${cotizacionId}] - Pamela Cossio Asesoría`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
-          <div style="background-color: #1E3A8A; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="margin: 0; font-size: 28px;">¡Gracias por tu interés!</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px;">Pamela Cossio - Asesoría de Seguros</p>
-          </div>
-          
-          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px;">
-            <h2 style="color: #1E3A8A; margin-top: 0;">Hola ${nombre} ${apellidos},</h2>
-            
-            <p>Hemos recibido tu solicitud de cotización exitosamente. Nuestro equipo revisará tu información y te contactaremos en las próximas 24 horas.</p>
-            
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #1E3A8A; margin-top: 0;">Resumen de tu solicitud:</h3>
-              <p><strong>ID de Cotización:</strong> <span style="background-color: #1E3A8A; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;">${cotizacionId}</span></p>
-              <p><strong>Nombre:</strong> ${nombre} ${apellidos}</p>
-              <p><strong>Teléfono:</strong> ${telefono}</p>
-              <p><strong>Email:</strong> ${email}</p>
-              <p><strong>Isapre actual:</strong> ${_isapre_actual}</p>
-              <p><strong>Pago mensual:</strong> ${_cuanto_paga}</p>
-              <p><strong>Clínica de preferencia:</strong> ${_clinica_preferencia}</p>
-              <p><strong>Renta imponible:</strong> ${_renta_imponible}</p>
-              ${mensaje ? `<p><strong>Mensaje:</strong> ${mensaje}</p>` : ''}
-            </div>
-            
-            <p>Te contactaremos por WhatsApp o teléfono para agendar una reunión y encontrar el mejor plan para ti.</p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <p style="color: #1E3A8A; font-weight: bold;">¡Puedes contar siempre con nosotros!</p>
-            </div>
-            
-            <div style="border-top: 2px solid #1E3A8A; padding-top: 20px; text-align: center;">
-              <p style="color: #666; font-size: 14px;">
-                Pamela Cossio<br>
-                Asesora de Seguros<br>
-                📧 info@pamelacossio.cl<br>
-                📱 +56 9 XXXX XXXX
-              </p>
-            </div>
-          </div>
-        </div>
-      `
+      html: emailClienteHtml
     };
 
     // Enviar email de notificación a todos los administradores
@@ -131,57 +112,31 @@ const crearCotizacion = async (req, res) => {
     if (admins.rows.length > 0) {
       const adminEmails = admins.rows.map(admin => admin.email);
       
+      // Preparar datos para el template del email del administrador
+      const emailAdminData = {
+        cotizacion_id: cotizacionId,
+        nombre,
+        apellidos,
+        edad,
+        telefono,
+        email,
+        isapre,
+        valor_mensual,
+        clinica,
+        renta,
+        numero_cargas,
+        edades_cargas,
+        mensaje,
+        fecha_envio: new Date().toLocaleString('es-CL')
+      };
+
+      // Renderizar email del administrador
+      const emailAdminHtml = await renderEmailAdmin(emailAdminData);
+      
       const emailAdmin = {
         to: adminEmails.join(', '),
         subject: `🚨 Nueva cotización recibida [${cotizacionId}] - Sistema de Asesoría`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
-            <div style="background-color: #1E3A8A; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="margin: 0; font-size: 28px;">🚨 Nueva Cotización</h1>
-              <p style="margin: 10px 0 0 0; font-size: 16px;">Sistema de Asesoría - Pamela Cossio</p>
-            </div>
-            
-            <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px;">
-              <h2 style="color: #1E3A8A; margin-top: 0;">Se ha recibido una nueva solicitud de cotización</h2>
-              
-              <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #856404; margin-top: 0;">📋 Detalles del cliente:</h3>
-                <p><strong>ID de Cotización:</strong> <span style="background-color: #1E3A8A; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;">${cotizacionId}</span></p>
-                <p><strong>Nombre completo:</strong> ${nombre} ${apellidos}</p>
-                <p><strong>Teléfono/WhatsApp:</strong> ${telefono}</p>
-                <p><strong>Email:</strong> ${email}</p>
-                <p><strong>Isapre actual:</strong> ${_isapre_actual}</p>
-                <p><strong>Pago mensual actual:</strong> ${_cuanto_paga}</p>
-                <p><strong>Clínica de preferencia:</strong> ${_clinica_preferencia}</p>
-                <p><strong>Renta imponible:</strong> ${_renta_imponible}</p>
-                ${mensaje ? `<p><strong>Mensaje adicional:</strong> ${mensaje}</p>` : ''}
-                <p><strong>Fecha de envío:</strong> ${new Date().toLocaleString('es-CL')}</p>
-              </div>
-              
-              <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #0c5460; margin-top: 0;">📞 Acción requerida:</h3>
-                <p>Por favor, contacta al cliente en las próximas 24 horas para:</p>
-                <ul>
-                  <li>Confirmar los datos proporcionados</li>
-                  <li>Agendar una reunión de asesoría</li>
-                  <li>Evaluar las mejores opciones según su perfil</li>
-                </ul>
-              </div>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <p style="color: #1E3A8A; font-weight: bold;">ID de cotización: <span style="background-color: #1E3A8A; color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 16px;">${cotizacionId}</span></p>
-              </div>
-              
-              <div style="border-top: 2px solid #1E3A8A; padding-top: 20px; text-align: center;">
-                <p style="color: #666; font-size: 14px;">
-                  Sistema de Asesoría Pamela Cossio<br>
-                  📧 info@pamelacossio.cl<br>
-                  🌐 www.pamelacossio.cl
-                </p>
-              </div>
-            </div>
-          </div>
-        `
+        html: emailAdminHtml
       };
 
       // Enviar emails
@@ -213,8 +168,8 @@ const crearCotizacion = async (req, res) => {
 const obtenerCotizaciones = async (req, res) => {
   try {
     const result = await query(`
-      SELECT id, cotizacion_id, nombre, apellidos, telefono, email, isapre_actual, 
-             cuanto_paga, clinica_preferencia, renta_imponible, mensaje, 
+      SELECT id, cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
+             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, 
              estado, fecha_envio
       FROM cotizacion 
       ORDER BY fecha_envio DESC

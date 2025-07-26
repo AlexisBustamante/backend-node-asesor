@@ -1,7 +1,7 @@
 {
   "name": "back-asesoria-seguros",
   "version": "1.0.0",
-  "description": "Backend para sistema de asesoría de seguros médicos en Chile",
+  "description": "Backend para sistema de asesora de salud previsional en Chile",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

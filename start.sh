@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Iniciando configuración del Backend de Asesoría de Seguros"
+echo "🚀 Iniciando configuración del Backend de Asesora de Salud Previsional"
 echo "=========================================================="
 
 # Verificar si Node.js está instalado

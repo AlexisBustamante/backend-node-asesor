@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nueva Cotización - Sistema de Asesoría</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f8f9fa;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+        <!-- Header -->
+        <div style="background-color: #3f7575; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <!-- Logo -->
+            <div style="margin-bottom: 10px;">
+                <img src="{{logoUrl}}" alt="Pamela Cossio Logo" style="max-width: 150px; height: auto; border-radius: 8px;">
+            </div>
+            <h1 style="margin: 0; font-size: 28px;">🚨 Nueva Cotización</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Sistema de Asesora de Salud Previsional - Pamela Cossio</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #3f7575; margin-top: 0;">Se ha recibido una nueva solicitud de cotización</h2>
+            
+            <!-- Detalles del cliente -->
+            <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3f7575;">
+                <h3 style="color: #856404; margin-top: 0;">📋 Detalles del cliente:</h3>
+                <p><strong>ID de Cotización:</strong> <span style="background-color: #3f7575; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;">{{cotizacion_id}}</span></p>
+                <p><strong>Nombre completo:</strong> {{nombre}} {{apellidos}}</p>
+                {{#if edad}}<p><strong>Edad:</strong> {{edad}} años</p>{{/if}}
+                <p><strong>Teléfono/WhatsApp:</strong>+56 {{telefono}}</p>
+                <p><strong>Email:</strong> {{email}}</p>
+                <p><strong>Isapre:</strong> {{isapre}}</p>
+                <p><strong>Valor mensual:</strong> {{valor_mensual}}</p>
+                <p><strong>Clínica:</strong> {{clinica}}</p>
+                <p><strong>Renta:</strong> {{renta}}</p>
+                {{#if numero_cargas}}<p><strong>Número de cargas:</strong> {{numero_cargas}}</p>{{/if}}
+                {{#if edades_cargas}}<p><strong>Edades de cargas:</strong> {{edades_cargas}}</p>{{/if}}
+                {{#if mensaje}}<p><strong>Mensaje adicional:</strong> {{mensaje}}</p>{{/if}}
+                <p><strong>Fecha de envío:</strong> {{fecha_envio}}</p>
+            </div>
+            
+            <!-- Acción requerida -->
+            <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3f7575;">
+                <h3 style="color: #0c5460; margin-top: 0;">📞 Acción requerida:</h3>
+                <p>Por favor, contacta al cliente en las próximas 24 horas para:</p>
+                <ul>
+                    <li>Confirmar los datos proporcionados</li>
+                    <li>Agendar una reunión de asesoría</li>
+                    <li>Evaluar las mejores opciones según su perfil</li>
+                </ul>
+            </div>
+            
+            <!-- ID destacado -->
+            <div style="text-align: center; margin: 30px 0;">
+                <p style="color: #3f7575; font-weight: bold;">ID de cotización: <span style="background-color: #3f7575; color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 16px;">{{cotizacion_id}}</span></p>
+            </div>
+            
+            <!-- Footer -->
+
+            <div style="border-top: 2px solid #3f7575; padding-top: 20px; text-align: center;">
+                <p style="color: #666; font-size: 14px;">
+                    Sistema de Asesora de Salud Previsional Pamela Cossio<br>
+                    📧 pamela.munozc@consalud.cl<br>
+                    📱 +56 9 4809 9714
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

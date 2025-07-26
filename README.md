@@ -1,6 +1,6 @@
-# 🏥 Backend de Asesoría de Seguros Médicos
+# 🏥 Backend de Asesora de Salud Previsional
 
-Sistema backend completo para gestión de asesoría de seguros médicos en Chile, desarrollado con Node.js, Express, PostgreSQL y JWT.
+Sistema backend completo para gestión de asesora de salud previsional en Chile, desarrollado con Node.js, Express, PostgreSQL y JWT.
 
 ## 🚀 Características
 

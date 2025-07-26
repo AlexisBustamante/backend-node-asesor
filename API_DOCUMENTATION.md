@@ -1,4 +1,4 @@
-# 📚 Documentación de la API - Asesoría de Seguros
+# 📚 Documentación de la API - Asesora de Salud Previsional
 
 ## 🔗 Base URL
 ```
@@ -620,7 +620,7 @@ Obtiene información general de la API.
 ```json
 {
   "success": true,
-  "message": "API de Asesoría de Seguros Médicos",
+  "message": "API de Asesora de Salud Previsional",
   "version": "1.0.0",
   "endpoints": {
     "auth": "/api/auth",
