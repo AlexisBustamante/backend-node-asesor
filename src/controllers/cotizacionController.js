@@ -1,7 +1,69 @@
 const { query } = require('../config/database');
 const nodemailer = require('nodemailer');
 const { renderEmailCliente, renderEmailAdmin } = require('../utils/htmlRenderer');
+const { body, validationResult } = require('express-validator');
 require('dotenv').config();
+
+// Validaciones para actualizar cotización
+const actualizarCotizacionValidation = [
+  body('nombre')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 150 })
+    .withMessage('El nombre debe tener entre 2 y 150 caracteres'),
+  body('apellidos')
+    .optional()
+    .trim(),
+  body('edad')
+    .optional()
+    .isNumeric()
+    .withMessage('La edad debe ser un número'),
+  body('telefono')
+    .optional()
+    .matches(/^\+?[0-9\s\-\(\)]+$/)
+    .withMessage('Formato de teléfono inválido'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Email inválido'),
+  body('isapre')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('La ISAPRE debe tener entre 2 y 100 caracteres'),
+  body('valor_mensual')
+    .optional()
+    .isNumeric()
+    .withMessage('El valor mensual debe ser un número'),
+  body('clinica')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('La clínica debe tener entre 2 y 100 caracteres'),
+  body('renta')
+    .optional()
+    .isNumeric()
+    .withMessage('La renta debe ser un número'),
+  body('numero_cargas')
+    .optional()
+    .isNumeric()
+    .withMessage('El número de cargas debe ser un número'),
+  body('edades_cargas')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Las edades de cargas no pueden exceder 100 caracteres'),
+  body('mensaje')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('El mensaje no puede exceder 1000 caracteres'),
+  body('estado')
+    .optional()
+    .isIn(['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'])
+    .withMessage('Estado no válido')
+];
 
 // Crear nueva cotización
 const crearCotizacion = async (req, res) => {
@@ -46,6 +108,14 @@ const crearCotizacion = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'El formato del email no es válido'
+      });
+    }
+
+    // Validar longitud del nombre
+    if (nombre.trim().length < 2 || nombre.trim().length > 150) {
+      return res.status(400).json({
+        success: false,
+        message: 'El nombre debe tener entre 2 y 150 caracteres'
       });
     }
 
@@ -167,17 +237,179 @@ const crearCotizacion = async (req, res) => {
 // Obtener todas las cotizaciones (para administradores)
 const obtenerCotizaciones = async (req, res) => {
   try {
-    const result = await query(`
-      SELECT id, cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
-             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, 
-             estado, fecha_envio
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+    const estado = req.query.estado || '';
+    const isapre = req.query.isapre || '';
+    const clinica = req.query.clinica || '';
+    const fechaDesde = req.query.fechaDesde || '';
+    const fechaHasta = req.query.fechaHasta || '';
+
+    let whereConditions = [];
+    let queryParams = [];
+    let paramCount = 0;
+
+    // Filtro de búsqueda
+    if (search) {
+      paramCount++;
+      whereConditions.push(`(c.nombre ILIKE $${paramCount} OR c.apellidos ILIKE $${paramCount} OR c.email ILIKE $${paramCount} OR c.cotizacion_id ILIKE $${paramCount})`);
+      queryParams.push(`%${search}%`);
+    }
+
+    // Filtro por estado
+    if (estado) {
+      paramCount++;
+      whereConditions.push(`c.estado = $${paramCount}`);
+      queryParams.push(estado);
+    }
+
+    // Filtro por ISAPRE
+    if (isapre) {
+      paramCount++;
+      whereConditions.push(`c.isapre ILIKE $${paramCount}`);
+      queryParams.push(`%${isapre}%`);
+    }
+
+    // Filtro por clínica
+    if (clinica) {
+      paramCount++;
+      whereConditions.push(`c.clinica ILIKE $${paramCount}`);
+      queryParams.push(`%${clinica}%`);
+    }
+
+    // Filtro por fecha desde
+    if (fechaDesde) {
+      paramCount++;
+      whereConditions.push(`DATE(c.fecha_envio) >= $${paramCount}`);
+      queryParams.push(fechaDesde);
+    }
+
+    // Filtro por fecha hasta
+    if (fechaHasta) {
+      paramCount++;
+      whereConditions.push(`DATE(c.fecha_envio) <= $${paramCount}`);
+      queryParams.push(fechaHasta);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Query para contar total de registros
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM cotizacion c
+      ${whereClause}
+    `;
+    const countResult = await query(countQuery, queryParams);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Query principal
+    const mainQuery = `
+      SELECT 
+        c.id, 
+        c.cotizacion_id, 
+        c.nombre, 
+        c.apellidos, 
+        c.edad, 
+        c.telefono, 
+        c.email, 
+        c.isapre, 
+        c.valor_mensual, 
+        c.clinica, 
+        c.renta, 
+        c.numero_cargas, 
+        c.edades_cargas, 
+        c.mensaje, 
+        c.estado, 
+        c.fecha_envio
+      FROM cotizacion c
+      ${whereClause}
+      ORDER BY c.fecha_envio DESC
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `;
+    
+    queryParams.push(limit, offset);
+    const result = await query(mainQuery, queryParams);
+
+    // Obtener estadísticas adicionales
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total_cotizaciones,
+        COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
+        COUNT(CASE WHEN estado = 'en_revision' THEN 1 END) as en_revision,
+        COUNT(CASE WHEN estado = 'contactado' THEN 1 END) as contactados,
+        COUNT(CASE WHEN estado = 'cotizado' THEN 1 END) as cotizados,
+        COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados,
+        COUNT(CASE WHEN DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE) THEN 1 END) as cotizaciones_este_mes,
+        COUNT(CASE WHEN DATE(fecha_envio) >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as cotizaciones_esta_semana,
+        COUNT(CASE WHEN DATE(fecha_envio) = CURRENT_DATE THEN 1 END) as cotizaciones_hoy
+      FROM cotizacion
+    `;
+    const statsResult = await query(statsQuery);
+
+    // Obtener estadísticas por mes de los últimos 6 meses
+    const statsPorMesQuery = `
+      SELECT 
+        TO_CHAR(DATE_TRUNC('month', fecha_envio), 'YYYY-MM') as mes,
+        COUNT(*) as total,
+        COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
+        COUNT(CASE WHEN estado = 'en_revision' THEN 1 END) as en_revision,
+        COUNT(CASE WHEN estado = 'contactado' THEN 1 END) as contactados,
+        COUNT(CASE WHEN estado = 'cotizado' THEN 1 END) as cotizados,
+        COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados
       FROM cotizacion 
-      ORDER BY fecha_envio DESC
-    `);
+      WHERE fecha_envio >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 months')
+      GROUP BY DATE_TRUNC('month', fecha_envio)
+      ORDER BY mes DESC
+    `;
+    const statsPorMesResult = await query(statsPorMesQuery);
+
+    // Obtener estadísticas de ISAPREs más solicitadas este mes
+    const isapresEsteMesQuery = `
+      SELECT 
+        isapre,
+        COUNT(*) as cantidad
+      FROM cotizacion 
+      WHERE DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE)
+        AND isapre IS NOT NULL AND isapre != ''
+      GROUP BY isapre 
+      ORDER BY cantidad DESC 
+      LIMIT 5
+    `;
+    const isapresEsteMesResult = await query(isapresEsteMesQuery);
+
+    // Obtener estadísticas de clínicas más solicitadas este mes
+    const clinicasEsteMesQuery = `
+      SELECT 
+        clinica,
+        COUNT(*) as cantidad
+      FROM cotizacion 
+      WHERE DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE)
+        AND clinica IS NOT NULL AND clinica != ''
+      GROUP BY clinica 
+      ORDER BY cantidad DESC 
+      LIMIT 5
+    `;
+    const clinicasEsteMesResult = await query(clinicasEsteMesQuery);
 
     res.json({
       success: true,
-      data: result.rows
+      data: {
+        cotizaciones: result.rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        },
+        stats: {
+          ...statsResult.rows[0],
+          porMes: statsPorMesResult.rows,
+          isapresEsteMes: isapresEsteMesResult.rows,
+          clinicasEsteMes: clinicasEsteMesResult.rows
+        }
+      }
     });
 
   } catch (error) {
@@ -229,6 +461,337 @@ const consultarEstadoCotizacion = async (req, res) => {
   }
 };
 
+// Obtener cotización por ID
+const obtenerCotizacionPorId = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(`
+      SELECT id, cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
+             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, 
+             estado, fecha_envio
+      FROM cotizacion 
+      WHERE id = $1
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cotización no encontrada'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo cotización:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
+// Actualizar cotización completa
+const actualizarCotizacion = async (req, res) => {
+  try {
+    console.log('=== ACTUALIZAR COTIZACIÓN ===');
+    console.log('Params:', req.params);
+    console.log('Body:', req.body);
+    console.log('Headers:', req.headers);
+    
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Errores de validación:', errors.array());
+      return res.status(400).json({
+        success: false,
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    const { id } = req.params;
+    const {
+      nombre,
+      apellidos,
+      edad,
+      telefono,
+      email,
+      isapre,
+      valor_mensual,
+      clinica,
+      renta,
+      numero_cargas,
+      edades_cargas,
+      mensaje,
+      estado
+    } = req.body;
+
+    // Verificar si la cotización existe
+    const existingCotizacion = await query('SELECT id FROM cotizacion WHERE id = $1', [id]);
+    if (existingCotizacion.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cotización no encontrada'
+      });
+    }
+
+    // Construir query de actualización dinámicamente
+    let updateFields = [];
+    let queryParams = [];
+    let paramCount = 0;
+
+    if (nombre !== undefined) {
+      paramCount++;
+      updateFields.push(`nombre = $${paramCount}`);
+      queryParams.push(nombre);
+    }
+
+    if (apellidos !== undefined) {
+      paramCount++;
+      updateFields.push(`apellidos = $${paramCount}`);
+      queryParams.push(apellidos);
+    }
+
+    if (edad !== undefined) {
+      paramCount++;
+      updateFields.push(`edad = $${paramCount}`);
+      queryParams.push(edad);
+    }
+
+    if (telefono !== undefined) {
+      paramCount++;
+      updateFields.push(`telefono = $${paramCount}`);
+      queryParams.push(telefono);
+    }
+
+    if (email !== undefined) {
+      paramCount++;
+      updateFields.push(`email = $${paramCount}`);
+      queryParams.push(email);
+    }
+
+    if (isapre !== undefined) {
+      paramCount++;
+      updateFields.push(`isapre = $${paramCount}`);
+      queryParams.push(isapre);
+    }
+
+    if (valor_mensual !== undefined) {
+      paramCount++;
+      updateFields.push(`valor_mensual = $${paramCount}`);
+      queryParams.push(valor_mensual);
+    }
+
+    if (clinica !== undefined) {
+      paramCount++;
+      updateFields.push(`clinica = $${paramCount}`);
+      queryParams.push(clinica);
+    }
+
+    if (renta !== undefined) {
+      paramCount++;
+      updateFields.push(`renta = $${paramCount}`);
+      queryParams.push(renta);
+    }
+
+    if (numero_cargas !== undefined) {
+      paramCount++;
+      updateFields.push(`numero_cargas = $${paramCount}`);
+      queryParams.push(numero_cargas);
+    }
+
+    if (edades_cargas !== undefined) {
+      paramCount++;
+      updateFields.push(`edades_cargas = $${paramCount}`);
+      queryParams.push(edades_cargas);
+    }
+
+    if (mensaje !== undefined) {
+      paramCount++;
+      updateFields.push(`mensaje = $${paramCount}`);
+      queryParams.push(mensaje);
+    }
+
+    if (estado !== undefined) {
+      // Validar estado
+      const estadosValidos = ['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'];
+      if (!estadosValidos.includes(estado)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Estado no válido'
+        });
+      }
+      paramCount++;
+      updateFields.push(`estado = $${paramCount}`);
+      queryParams.push(estado);
+    }
+
+    if (updateFields.length === 0) {
+      console.log('No se proporcionaron campos para actualizar');
+      return res.status(400).json({
+        success: false,
+        message: 'No se proporcionaron campos para actualizar'
+      });
+    }
+
+    // Agregar ID de la cotización
+    paramCount++;
+    queryParams.push(id);
+
+    const updateQuery = `
+      UPDATE cotizacion 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING id, cotizacion_id, nombre, apellidos, edad, telefono, email, 
+                isapre, valor_mensual, clinica, renta, numero_cargas, 
+                edades_cargas, mensaje, estado, fecha_envio
+    `;
+
+    console.log('Query de actualización:', updateQuery);
+    console.log('Parámetros:', queryParams);
+
+    const result = await query(updateQuery, queryParams);
+    console.log('Resultado de la query:', result.rows);
+    
+    const cotizacion = result.rows[0];
+
+    console.log('Cotización actualizada:', cotizacion);
+    console.log('=== FIN ACTUALIZAR COTIZACIÓN ===');
+
+    res.json({
+      success: true,
+      message: 'Cotización actualizada exitosamente',
+      data: cotizacion
+    });
+
+  } catch (error) {
+    console.error('Error actualizando cotización:', error);
+    
+    // Manejar errores específicos de base de datos
+    if (error.code === '23505') { // Unique violation
+      return res.status(400).json({
+        success: false,
+        message: 'Ya existe una cotización con estos datos'
+      });
+    }
+    
+    if (error.code === '23502') { // Not null violation
+      return res.status(400).json({
+        success: false,
+        message: 'Faltan campos requeridos'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Función de prueba para debugging
+const testUpdate = async (req, res) => {
+  try {
+    console.log('Body recibido:', req.body);
+    console.log('Params recibidos:', req.params);
+    
+    res.json({
+      success: true,
+      message: 'Test endpoint funcionando',
+      body: req.body,
+      params: req.params
+    });
+  } catch (error) {
+    console.error('Error en test:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error en test',
+      error: error.message
+    });
+  }
+};
+
+// Función de actualización sin validaciones para debugging
+const actualizarCotizacionSimple = async (req, res) => {
+  try {
+    console.log('=== ACTUALIZAR COTIZACIÓN SIMPLE ===');
+    console.log('Params:', req.params);
+    console.log('Body:', req.body);
+    
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Verificar si la cotización existe
+    const existingCotizacion = await query('SELECT id FROM cotizacion WHERE id = $1', [id]);
+    if (existingCotizacion.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cotización no encontrada'
+      });
+    }
+    
+    // Construir query de actualización dinámicamente
+    let updateFields = [];
+    let queryParams = [];
+    let paramCount = 0;
+    
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] !== undefined && updateData[key] !== null) {
+        paramCount++;
+        updateFields.push(`${key} = $${paramCount}`);
+        queryParams.push(updateData[key]);
+      }
+    });
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se proporcionaron campos para actualizar'
+      });
+    }
+    
+    // Agregar ID de la cotización
+    paramCount++;
+    queryParams.push(id);
+    
+    const updateQuery = `
+      UPDATE cotizacion 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING *
+    `;
+    
+    console.log('Query:', updateQuery);
+    console.log('Parámetros:', queryParams);
+    
+    const result = await query(updateQuery, queryParams);
+    const cotizacion = result.rows[0];
+    
+    console.log('Resultado:', cotizacion);
+    console.log('=== FIN ACTUALIZAR COTIZACIÓN SIMPLE ===');
+    
+    res.json({
+      success: true,
+      message: 'Cotización actualizada exitosamente',
+      data: cotizacion
+    });
+    
+  } catch (error) {
+    console.error('Error en actualización simple:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+};
+
 // Actualizar estado de cotización
 const actualizarEstadoCotizacion = async (req, res) => {
   try {
@@ -273,6 +836,135 @@ const actualizarEstadoCotizacion = async (req, res) => {
   }
 };
 
+// Obtener estadísticas generales
+const obtenerEstadisticas = async (req, res) => {
+  try {
+    // Obtener estadísticas generales
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total_cotizaciones,
+        COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
+        COUNT(CASE WHEN estado = 'en_revision' THEN 1 END) as en_revision,
+        COUNT(CASE WHEN estado = 'contactado' THEN 1 END) as contactados,
+        COUNT(CASE WHEN estado = 'cotizado' THEN 1 END) as cotizados,
+        COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados,
+        COUNT(CASE WHEN DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE) THEN 1 END) as cotizaciones_este_mes,
+        COUNT(CASE WHEN DATE(fecha_envio) >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as cotizaciones_esta_semana,
+        COUNT(CASE WHEN DATE(fecha_envio) = CURRENT_DATE THEN 1 END) as cotizaciones_hoy
+      FROM cotizacion
+    `;
+    const statsResult = await query(statsQuery);
+
+    // Obtener estadísticas por mes de los últimos 6 meses
+    const statsPorMesQuery = `
+      SELECT 
+        TO_CHAR(DATE_TRUNC('month', fecha_envio), 'YYYY-MM') as mes,
+        COUNT(*) as total,
+        COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
+        COUNT(CASE WHEN estado = 'en_revision' THEN 1 END) as en_revision,
+        COUNT(CASE WHEN estado = 'contactado' THEN 1 END) as contactados,
+        COUNT(CASE WHEN estado = 'cotizado' THEN 1 END) as cotizados,
+        COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados
+      FROM cotizacion 
+      WHERE fecha_envio >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 months')
+      GROUP BY DATE_TRUNC('month', fecha_envio)
+      ORDER BY mes DESC
+    `;
+    const statsPorMesResult = await query(statsPorMesQuery);
+
+    // Obtener estadísticas de ISAPREs más solicitadas este mes
+    const isapresEsteMesQuery = `
+      SELECT 
+        isapre,
+        COUNT(*) as cantidad
+      FROM cotizacion 
+      WHERE DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE)
+        AND isapre IS NOT NULL AND isapre != ''
+      GROUP BY isapre 
+      ORDER BY cantidad DESC 
+      LIMIT 5
+    `;
+    const isapresEsteMesResult = await query(isapresEsteMesQuery);
+
+    // Obtener estadísticas de clínicas más solicitadas este mes
+    const clinicasEsteMesQuery = `
+      SELECT 
+        clinica,
+        COUNT(*) as cantidad
+      FROM cotizacion 
+      WHERE DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE)
+        AND clinica IS NOT NULL AND clinica != ''
+      GROUP BY clinica 
+      ORDER BY cantidad DESC 
+      LIMIT 5
+    `;
+    const clinicasEsteMesResult = await query(clinicasEsteMesQuery);
+
+    res.json({
+      success: true,
+      data: {
+        ...statsResult.rows[0],
+        porMes: statsPorMesResult.rows,
+        isapresEsteMes: isapresEsteMesResult.rows,
+        clinicasEsteMes: clinicasEsteMesResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo estadísticas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
+// Obtener opciones de filtros
+const obtenerOpcionesFiltros = async (req, res) => {
+  try {
+    // Obtener ISAPREs únicas
+    const isapresResult = await query(`
+      SELECT DISTINCT isapre 
+      FROM cotizacion 
+      WHERE isapre IS NOT NULL AND isapre != ''
+      ORDER BY isapre
+    `);
+
+    // Obtener clínicas únicas
+    const clinicasResult = await query(`
+      SELECT DISTINCT clinica 
+      FROM cotizacion 
+      WHERE clinica IS NOT NULL AND clinica != ''
+      ORDER BY clinica
+    `);
+
+    // Estados disponibles
+    const estados = [
+      { value: 'pendiente', label: 'Pendiente' },
+      { value: 'en_revision', label: 'En Revisión' },
+      { value: 'contactado', label: 'Contactado' },
+      { value: 'cotizado', label: 'Cotizado' },
+      { value: 'cerrado', label: 'Cerrado' }
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        isapres: isapresResult.rows.map(row => row.isapre),
+        clinicas: clinicasResult.rows.map(row => row.clinica),
+        estados: estados
+      }
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo opciones de filtros:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
 // Función para enviar emails
 const sendEmail = async (emailData) => {
   try {
@@ -305,6 +997,13 @@ const sendEmail = async (emailData) => {
 module.exports = {
   crearCotizacion,
   obtenerCotizaciones,
+  obtenerCotizacionPorId,
   consultarEstadoCotizacion,
-  actualizarEstadoCotizacion
+  actualizarEstadoCotizacion,
+  obtenerOpcionesFiltros,
+  obtenerEstadisticas,
+  actualizarCotizacion,
+  actualizarCotizacionValidation,
+  testUpdate,
+  actualizarCotizacionSimple
 }; 
