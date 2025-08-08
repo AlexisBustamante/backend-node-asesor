@@ -147,6 +147,7 @@ const createTables = async () => {
         numero_cargas INTEGER DEFAULT 0,
         edades_cargas TEXT,
         mensaje TEXT,
+        procedencia VARCHAR(255),
         estado VARCHAR(20) DEFAULT 'pendiente',
         fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -216,7 +217,7 @@ const updateCotizacionTable = async () => {
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name = 'cotizacion' 
-      AND column_name IN ('edad', 'numero_cargas', 'edades_cargas')
+      AND column_name IN ('edad', 'numero_cargas', 'edades_cargas', 'procedencia')
     `);
 
     const existingColumns = checkColumns.rows.map(row => row.column_name);
@@ -237,6 +238,12 @@ const updateCotizacionTable = async () => {
     if (!existingColumns.includes('edades_cargas')) {
       await query(`ALTER TABLE cotizacion ADD COLUMN edades_cargas TEXT;`);
       console.log('✅ Campo "edades_cargas" agregado');
+    }
+
+    // Agregar campo procedencia si no existe
+    if (!existingColumns.includes('procedencia')) {
+      await query(`ALTER TABLE cotizacion ADD COLUMN procedencia VARCHAR(255);`);
+      console.log('✅ Campo "procedencia" agregado');
     }
 
     // Renombrar campos existentes para mantener compatibilidad

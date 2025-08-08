@@ -454,21 +454,21 @@ Crea una nueva cotización y envía emails de confirmación al cliente y notific
 {
   "nombre": "Juan Carlos",
   "apellidos": "Pérez González",
+  "edad": 35,
   "telefono": "+56912345678",
   "email": "juan.perez@email.com",
-  "isapre": "Fonasa",
-  "isapre_actual": "Fonasa",
+  "isapre": "Banmédica",
   "valor_mensual": "50000",
-  "cuanto_paga": "50000",
   "clinica": "Clínica Alemana",
-  "clinica_preferencia": "Clínica Alemana",
   "renta": "1500000",
-  "renta_imponible": "1500000",
+  "numero_cargas": 2,
+  "edades_cargas": "8, 12",
+  "procedencia": "Redes sociales",
   "mensaje": "Necesito cotización para plan familiar"
 }
 ```
 
-**Campos requeridos:** `nombre`, `apellidos`, `telefono`, `email`, `clinica_preferencia`, `isapre_actual`, `cuanto_paga`, `renta_imponible`
+**Campos requeridos:** `nombre`, `edad`, `telefono`, `email`, `isapre`, `clinica`, `renta`, `numero_cargas`, `edades_cargas`
 
 **Respuesta exitosa (201):**
 ```json
@@ -490,7 +490,59 @@ Crea una nueva cotización y envía emails de confirmación al cliente y notific
 - Se envía notificación a todos los administradores
 - El ID de cotización aparece en el asunto de ambos emails
 
-### 2. Listar Cotizaciones (Administradores)
+### 2. Crear Cotización desde Panel de Administración
+
+**POST** `/cotizaciones/admin`
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Crea una nueva cotización desde el panel de administración sin enviar emails automáticos.
+
+**Body:**
+```json
+{
+  "nombre": "Juan Carlos",
+  "apellidos": "Pérez González",
+  "edad": 35,
+  "telefono": "+56912345678",
+  "email": "juan.perez@email.com",
+  "isapre": "Banmédica",
+  "valor_mensual": "50000",
+  "clinica": "Clínica Alemana",
+  "renta": "1500000",
+  "numero_cargas": 2,
+  "edades_cargas": "8, 12",
+  "procedencia": "Referido de cliente",
+  "mensaje": "Cliente interesado en plan familiar"
+}
+```
+
+**Campos requeridos:** `nombre`, `edad`, `telefono`, `isapre`, `clinica`, `renta`, `numero_cargas`, `edades_cargas`
+
+**Respuesta exitosa (201):**
+```json
+{
+  "success": true,
+  "message": "Cotización creada exitosamente desde el panel de administración.",
+  "data": {
+    "id": 1,
+    "cotizacion_id": "COT-20250714-0001",
+    "nombre": "Juan Carlos",
+    "apellidos": "Pérez González",
+    "email": "juan.perez@email.com",
+    "fecha_envio": "2025-07-14T16:40:54.000Z"
+  }
+}
+```
+
+**Notas importantes:**
+- Requiere autenticación con rol de administrador
+- No envía emails automáticos
+- El campo email es opcional (no obligatorio)
+- Usa las mismas validaciones que la ruta pública
+- Genera el mismo formato de ID único
+
+### 3. Listar Cotizaciones (Administradores)
 
 **GET** `/cotizaciones`
 
@@ -521,7 +573,7 @@ Obtiene todas las cotizaciones ordenadas por fecha de envío (más recientes pri
 }
 ```
 
-### 3. Consultar Estado de Cotización (Público)
+### 4. Consultar Estado de Cotización (Público)
 
 **GET** `/cotizaciones/estado/:cotizacion_id`
 

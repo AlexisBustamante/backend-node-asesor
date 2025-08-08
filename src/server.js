@@ -35,28 +35,7 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Middleware de seguridad
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-}));
-
-// Middleware de compresión
-app.use(compression());
-
-// Middleware de logging
-app.use(morgan('combined'));
-
-// Middleware de rate limiting
-app.use(limiter);
-
-// Configuración de CORS
+// Configuración de CORS (DEBE IR PRIMERO)
 const allowedOrigins = [
   'http://localhost:3000',  // Frontend en puerto 3000
   'http://localhost:5173',  // Vite dev server
@@ -77,22 +56,59 @@ if (process.env.BACK_URL_PROD) {
   allowedOrigins.push(process.env.BACK_URL_PROD);
 }
 
+// Configurar CORS antes que cualquier otro middleware
 app.use(cors({
-  origin: function (origin, callback) {
-    // Permitir requests sin origin (como Postman, cURL, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('🚫 CORS bloqueado para origen:', origin);
-      callback(new Error('No permitido por CORS'));
-    }
-  },
+  origin: allowedOrigins,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 200
 }));
+
+// Middleware para manejar peticiones OPTIONS (preflight)
+app.options('*', cors());
+
+// Middleware adicional para manejar CORS en todas las rutas
+app.use((req, res, next) => {
+  // Verificar si el origen está permitido
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Manejar peticiones OPTIONS
+  if (req.method === 'OPTIONS') {
+    console.log('🔄 Petición OPTIONS recibida para:', req.url);
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
+// Middleware de seguridad
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+// Middleware de compresión
+app.use(compression());
+
+// Middleware de logging
+app.use(morgan('combined'));
+
+// Middleware de rate limiting
+app.use(limiter);
 
 // Middleware para parsear JSON
 app.use(express.json({ limit: '10mb' }));

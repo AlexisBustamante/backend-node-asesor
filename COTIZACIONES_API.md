@@ -14,8 +14,19 @@ Obtiene todas las cotizaciones con paginación y filtros.
 - `estado`: Filtro por estado (pendiente, en_revision, contactado, cotizado, cerrado)
 - `isapre`: Filtro por ISAPRE
 - `clinica`: Filtro por clínica
-- `fechaDesde`: Filtro por fecha desde (YYYY-MM-DD)
-- `fechaHasta`: Filtro por fecha hasta (YYYY-MM-DD)
+- `fechaDesde`: Filtro por fecha desde (formato: YYYY-MM-DD)
+- `fechaHasta`: Filtro por fecha hasta (formato: YYYY-MM-DD)
+
+#### Filtro de Rango de Fechas:
+El filtro de fechas permite buscar cotizaciones dentro de un rango específico:
+- **fechaDesde**: Fecha de inicio del rango (inclusive)
+- **fechaHasta**: Fecha de fin del rango (inclusive)
+- **Formato**: YYYY-MM-DD (ejemplo: 2024-12-01)
+- **Comportamiento**: 
+  - Si solo se especifica `fechaDesde`: Busca desde esa fecha hasta hoy
+  - Si solo se especifica `fechaHasta`: Busca desde el inicio hasta esa fecha
+  - Si se especifican ambos: Busca en el rango completo
+  - Si no se especifica ninguno: No aplica filtro de fecha
 
 #### Ejemplo de uso:
 ```javascript
@@ -26,8 +37,22 @@ fetch('/api/cotizaciones', {
   }
 })
 
-// Con filtros
+// Con filtros básicos
 fetch('/api/cotizaciones?page=1&limit=20&estado=pendiente&search=Juan', {
+  headers: {
+    'Authorization': 'Bearer ' + token
+  }
+})
+
+// Con filtro de rango de fechas
+fetch('/api/cotizaciones?fechaDesde=2024-12-01&fechaHasta=2024-12-31', {
+  headers: {
+    'Authorization': 'Bearer ' + token
+  }
+})
+
+// Con múltiples filtros incluyendo fechas
+fetch('/api/cotizaciones?page=1&limit=20&estado=pendiente&isapre=Fonasa&fechaDesde=2024-12-01&fechaHasta=2024-12-31', {
   headers: {
     'Authorization': 'Bearer ' + token
   }
@@ -416,6 +441,76 @@ Authorization: Bearer <token>
 }
 ```
 
+## Casos de Uso Comunes para Filtro de Fechas
+
+### 1. Cotizaciones del Día Actual
+```javascript
+const hoy = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+const cotizacionesHoy = await cotizacionesService.getCotizaciones({
+  fechaDesde: hoy,
+  fechaHasta: hoy
+});
+```
+
+### 2. Cotizaciones de la Semana Actual
+```javascript
+const obtenerFechasSemana = () => {
+  const hoy = new Date();
+  const inicioSemana = new Date(hoy.setDate(hoy.getDate() - hoy.getDay()));
+  const finSemana = new Date(hoy.setDate(hoy.getDate() - hoy.getDay() + 6));
+  
+  return {
+    desde: inicioSemana.toISOString().split('T')[0],
+    hasta: finSemana.toISOString().split('T')[0]
+  };
+};
+
+const { desde, hasta } = obtenerFechasSemana();
+const cotizacionesSemana = await cotizacionesService.getCotizaciones({
+  fechaDesde: desde,
+  fechaHasta: hasta
+});
+```
+
+### 3. Cotizaciones del Mes Actual
+```javascript
+const obtenerFechasMes = () => {
+  const hoy = new Date();
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+  
+  return {
+    desde: inicioMes.toISOString().split('T')[0],
+    hasta: finMes.toISOString().split('T')[0]
+  };
+};
+
+const { desde, hasta } = obtenerFechasMes();
+const cotizacionesMes = await cotizacionesService.getCotizaciones({
+  fechaDesde: desde,
+  fechaHasta: hasta
+});
+```
+
+### 4. Cotizaciones de los Últimos 30 Días
+```javascript
+const obtenerUltimos30Dias = () => {
+  const hoy = new Date();
+  const hace30Dias = new Date(hoy.getTime() - (30 * 24 * 60 * 60 * 1000));
+  
+  return {
+    desde: hace30Dias.toISOString().split('T')[0],
+    hasta: hoy.toISOString().split('T')[0]
+  };
+};
+
+const { desde, hasta } = obtenerUltimos30Dias();
+const cotizacionesUltimos30Dias = await cotizacionesService.getCotizaciones({
+  fechaDesde: desde,
+  fechaHasta: hasta
+});
+```
+
 ## Ejemplo de Implementación en Frontend
 
 ```javascript
@@ -488,6 +583,62 @@ class CotizacionesService {
 }
 
 // Uso
+
+// Ejemplo de uso con filtros de fecha
+const cotizacionesService = new CotizacionesService(token);
+
+// Obtener cotizaciones del último mes
+const cotizacionesUltimoMes = await cotizacionesService.getCotizaciones({
+  fechaDesde: '2024-12-01',
+  fechaHasta: '2024-12-31'
+});
+
+// Obtener cotizaciones pendientes de esta semana
+const cotizacionesEstaSemana = await cotizacionesService.getCotizaciones({
+  estado: 'pendiente',
+  fechaDesde: '2024-12-23', // Lunes
+  fechaHasta: '2024-12-29'  // Domingo
+});
+
+// Obtener cotizaciones de una ISAPRE específica en un rango de fechas
+const cotizacionesFonasa = await cotizacionesService.getCotizaciones({
+  isapre: 'Fonasa',
+  fechaDesde: '2024-11-01',
+  fechaHasta: '2024-11-30'
+});
+
+// Ejemplo con React/Vue para componentes de filtro de fecha
+const FiltroFechas = () => {
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+
+  const aplicarFiltros = async () => {
+    const filtros = {};
+    if (fechaDesde) filtros.fechaDesde = fechaDesde;
+    if (fechaHasta) filtros.fechaHasta = fechaHasta;
+    
+    const resultado = await cotizacionesService.getCotizaciones(filtros);
+    // Actualizar estado con los resultados
+  };
+
+  return (
+    <div>
+      <input 
+        type="date" 
+        value={fechaDesde} 
+        onChange={(e) => setFechaDesde(e.target.value)}
+        placeholder="Fecha desde"
+      />
+      <input 
+        type="date" 
+        value={fechaHasta} 
+        onChange={(e) => setFechaHasta(e.target.value)}
+        placeholder="Fecha hasta"
+      />
+      <button onClick={aplicarFiltros}>Aplicar Filtros</button>
+    </div>
+  );
+};
 const cotizacionesService = new CotizacionesService(userToken);
 
 // Obtener cotizaciones

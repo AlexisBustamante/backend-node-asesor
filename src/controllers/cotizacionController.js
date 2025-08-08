@@ -59,13 +59,18 @@ const actualizarCotizacionValidation = [
     .trim()
     .isLength({ max: 1000 })
     .withMessage('El mensaje no puede exceder 1000 caracteres'),
+  body('procedencia')
+    .optional()
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('La procedencia no puede exceder 255 caracteres'),
   body('estado')
     .optional()
     .isIn(['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'])
     .withMessage('Estado no válido')
 ];
 
-// Crear nueva cotización
+// Crear nueva cotización (pública - con emails)
 const crearCotizacion = async (req, res) => {
   try {
     // Mapear los campos del frontend a los nombres usados internamente
@@ -81,7 +86,8 @@ const crearCotizacion = async (req, res) => {
       renta,
       numero_cargas,
       edades_cargas,
-      mensaje
+      mensaje,
+      procedencia
     } = req.body;
 
 
@@ -137,11 +143,11 @@ const crearCotizacion = async (req, res) => {
     // Insertar cotización en la base de datos
     const result = await query(`
       INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
-                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING id, cotizacion_id, nombre, apellidos, email, fecha_envio
     `, [cotizacionId, nombre, apellidos, edad, telefono, email, isapre, 
-        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje]);
+        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia]);
 
     const cotizacion = result.rows[0];
 
@@ -159,7 +165,8 @@ const crearCotizacion = async (req, res) => {
       renta,
       numero_cargas,
       edades_cargas,
-      mensaje
+      mensaje,
+      procedencia
     };
 
     // Renderizar email del cliente
@@ -197,6 +204,7 @@ const crearCotizacion = async (req, res) => {
         numero_cargas,
         edades_cargas,
         mensaje,
+        procedencia,
         fecha_envio: new Date().toLocaleString('es-CL')
       };
 
@@ -227,6 +235,109 @@ const crearCotizacion = async (req, res) => {
 
   } catch (error) {
     console.error('Error creando cotización:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
+// Crear nueva cotización desde panel de administración (sin emails)
+const crearCotizacionAdmin = async (req, res) => {
+  try {
+    // Mapear los campos del frontend a los nombres usados internamente
+    const {
+      nombre,
+      apellidos,
+      edad,
+      telefono,
+      email,
+      isapre,
+      valor_mensual,
+      clinica,
+      renta,
+      numero_cargas,
+      edades_cargas,
+      mensaje,
+      procedencia
+    } = req.body;
+
+    // Validar campos requeridos (verificando que no estén vacíos)
+    if (!nombre || nombre.trim() === '' || 
+        !edad || edad.toString().trim() === '' || 
+        !telefono || telefono.toString().trim() === '' || 
+        !isapre || isapre.trim() === '' || 
+        !clinica || clinica.trim() === '' || 
+        !renta || renta.toString().trim() === '' || 
+        !numero_cargas || numero_cargas.toString().trim() === '' || 
+        !edades_cargas || edades_cargas.toString().trim() === '') {
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Todos los campos marcados con * son obligatorios'
+      });
+    }
+
+    // Validar formato de email solo si se proporciona
+    if (email && email.trim() !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'El formato del email no es válido'
+        });
+      }
+    }
+
+    // Validar longitud del nombre
+    if (nombre.trim().length < 2 || nombre.trim().length > 150) {
+      return res.status(400).json({
+        success: false,
+        message: 'El nombre debe tener entre 2 y 150 caracteres'
+      });
+    }
+
+    // Generar ID único para la cotización (formato: COT-YYYYMMDD-XXXX)
+    const fecha = new Date();
+    const fechaStr = fecha.getFullYear().toString() + 
+                    (fecha.getMonth() + 1).toString().padStart(2, '0') + 
+                    fecha.getDate().toString().padStart(2, '0');
+    
+    // Obtener el siguiente número de cotización del día
+    const countResult = await query(`
+      SELECT COUNT(*) as count 
+      FROM cotizacion 
+      WHERE DATE(fecha_envio) = CURRENT_DATE
+    `);
+    const numeroCotizacion = (countResult.rows[0].count + 1).toString().padStart(4, '0');
+    const cotizacionId = `COT-${fechaStr}-${numeroCotizacion}`;
+
+    // Insertar cotización en la base de datos
+    const result = await query(`
+      INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
+                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING id, cotizacion_id, nombre, apellidos, email, fecha_envio
+    `, [cotizacionId, nombre, apellidos, edad, telefono, email, isapre, 
+        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia]);
+
+    const cotizacion = result.rows[0];
+
+    res.status(201).json({
+      success: true,
+      message: 'Cotización creada exitosamente desde el panel de administración.',
+      data: {
+        id: cotizacion.id,
+        cotizacion_id: cotizacionId,
+        nombre: cotizacion.nombre,
+        apellidos: cotizacion.apellidos,
+        email: cotizacion.email,
+        fecha_envio: cotizacion.fecha_envio
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creando cotización desde admin:', error);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
@@ -321,6 +432,7 @@ const obtenerCotizaciones = async (req, res) => {
         c.numero_cargas, 
         c.edades_cargas, 
         c.mensaje, 
+        c.procedencia,
         c.estado, 
         c.fecha_envio
       FROM cotizacion c
@@ -469,7 +581,7 @@ const obtenerCotizacionPorId = async (req, res) => {
     const result = await query(`
       SELECT id, cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
              valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, 
-             estado, fecha_envio
+             procedencia, estado, fecha_envio
       FROM cotizacion 
       WHERE id = $1
     `, [id]);
@@ -528,6 +640,7 @@ const actualizarCotizacion = async (req, res) => {
       numero_cargas,
       edades_cargas,
       mensaje,
+      procedencia,
       estado
     } = req.body;
 
@@ -617,6 +730,12 @@ const actualizarCotizacion = async (req, res) => {
       queryParams.push(mensaje);
     }
 
+    if (procedencia !== undefined) {
+      paramCount++;
+      updateFields.push(`procedencia = $${paramCount}`);
+      queryParams.push(procedencia);
+    }
+
     if (estado !== undefined) {
       // Validar estado
       const estadosValidos = ['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'];
@@ -649,7 +768,7 @@ const actualizarCotizacion = async (req, res) => {
       WHERE id = $${paramCount}
       RETURNING id, cotizacion_id, nombre, apellidos, edad, telefono, email, 
                 isapre, valor_mensual, clinica, renta, numero_cargas, 
-                edades_cargas, mensaje, estado, fecha_envio
+                edades_cargas, mensaje, procedencia, estado, fecha_envio
     `;
 
     console.log('Query de actualización:', updateQuery);
@@ -795,17 +914,28 @@ const actualizarCotizacionSimple = async (req, res) => {
 // Actualizar estado de cotización
 const actualizarEstadoCotizacion = async (req, res) => {
   try {
+    console.log('🔍 Debug - actualizarEstadoCotizacion iniciado');
+    console.log('📝 Parámetros:', req.params);
+    console.log('📦 Body:', req.body);
+    console.log('👤 Usuario:', req.user);
+
     const { id } = req.params;
     const { estado } = req.body;
+
+    console.log('🆔 ID recibido:', id);
+    console.log('📊 Estado recibido:', estado);
 
     const estadosValidos = ['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'];
     
     if (!estadosValidos.includes(estado)) {
+      console.log('❌ Estado no válido:', estado);
       return res.status(400).json({
         success: false,
         message: 'Estado no válido'
       });
     }
+
+    console.log('✅ Estado válido, ejecutando query...');
 
     const result = await query(`
       UPDATE cotizacion 
@@ -814,12 +944,17 @@ const actualizarEstadoCotizacion = async (req, res) => {
       RETURNING id, nombre, apellidos, estado
     `, [estado, id]);
 
+    console.log('📊 Resultado de la query:', result.rows);
+
     if (result.rows.length === 0) {
+      console.log('❌ Cotización no encontrada con ID:', id);
       return res.status(404).json({
         success: false,
         message: 'Cotización no encontrada'
       });
     }
+
+    console.log('✅ Estado actualizado exitosamente');
 
     res.json({
       success: true,
@@ -828,10 +963,12 @@ const actualizarEstadoCotizacion = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error actualizando estado:', error);
+    console.error('💥 Error actualizando estado:', error);
+    console.error('📋 Stack trace:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Error interno del servidor'
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -996,6 +1133,7 @@ const sendEmail = async (emailData) => {
 
 module.exports = {
   crearCotizacion,
+  crearCotizacionAdmin,
   obtenerCotizaciones,
   obtenerCotizacionPorId,
   consultarEstadoCotizacion,

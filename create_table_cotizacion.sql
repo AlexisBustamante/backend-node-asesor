@@ -18,6 +18,7 @@ CREATE TABLE cotizacion (
     numero_cargas INTEGER DEFAULT 0,
     edades_cargas TEXT,
     mensaje TEXT,
+    procedencia VARCHAR(255),
     estado VARCHAR(20) DEFAULT 'pendiente',
     fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
