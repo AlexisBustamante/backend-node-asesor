@@ -355,6 +355,7 @@ const obtenerCotizaciones = async (req, res) => {
     const estado = req.query.estado || '';
     const isapre = req.query.isapre || '';
     const clinica = req.query.clinica || '';
+    const procedencia = req.query.procedencia || '';
     const fechaDesde = req.query.fechaDesde || '';
     const fechaHasta = req.query.fechaHasta || '';
 
@@ -388,6 +389,13 @@ const obtenerCotizaciones = async (req, res) => {
       paramCount++;
       whereConditions.push(`c.clinica ILIKE $${paramCount}`);
       queryParams.push(`%${clinica}%`);
+    }
+
+    // Filtro por procedencia
+    if (procedencia) {
+      paramCount++;
+      whereConditions.push(`c.procedencia ILIKE $${paramCount}`);
+      queryParams.push(`%${procedencia}%`);
     }
 
     // Filtro por fecha desde
@@ -1037,13 +1045,81 @@ const obtenerEstadisticas = async (req, res) => {
     `;
     const clinicasEsteMesResult = await query(clinicasEsteMesQuery);
 
+    // Obtener estadísticas por procedencia (total)
+    const procedenciaTotalQuery = `
+      SELECT 
+        COALESCE(procedencia, 'Sin especificar') as procedencia,
+        COUNT(*) as cantidad
+      FROM cotizacion 
+      WHERE procedencia IS NOT NULL AND procedencia != ''
+      GROUP BY procedencia 
+      ORDER BY cantidad DESC
+    `;
+    const procedenciaTotalResult = await query(procedenciaTotalQuery);
+
+    // Obtener estadísticas por procedencia este mes
+    const procedenciaEsteMesQuery = `
+      SELECT 
+        COALESCE(procedencia, 'Sin especificar') as procedencia,
+        COUNT(*) as cantidad
+      FROM cotizacion 
+      WHERE DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE)
+        AND procedencia IS NOT NULL AND procedencia != ''
+      GROUP BY procedencia 
+      ORDER BY cantidad DESC
+    `;
+    const procedenciaEsteMesResult = await query(procedenciaEsteMesQuery);
+
+    // Obtener estadísticas por procedencia esta semana
+    const procedenciaEstaSemanaQuery = `
+      SELECT 
+        COALESCE(procedencia, 'Sin especificar') as procedencia,
+        COUNT(*) as cantidad
+      FROM cotizacion 
+      WHERE DATE(fecha_envio) >= CURRENT_DATE - INTERVAL '7 days'
+        AND procedencia IS NOT NULL AND procedencia != ''
+      GROUP BY procedencia 
+      ORDER BY cantidad DESC
+    `;
+    const procedenciaEstaSemanaResult = await query(procedenciaEstaSemanaQuery);
+
+    // Contar específicamente Instagram, Facebook, Página Web y WhatsApp
+    const procedenciaEspecificaQuery = `
+      SELECT 
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%instagram%' THEN 1 END) as instagram,
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%facebook%' OR LOWER(procedencia) LIKE '%fb%' THEN 1 END) as facebook,
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%pagina%' OR LOWER(procedencia) LIKE '%web%' OR LOWER(procedencia) LIKE '%sitio%' THEN 1 END) as pagina_web,
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%whatsapp%' OR LOWER(procedencia) LIKE '%wsp%' OR LOWER(procedencia) LIKE '%wa%' THEN 1 END) as whatsapp,
+        COUNT(CASE WHEN procedencia IS NULL OR procedencia = '' THEN 1 END) as sin_especificar
+      FROM cotizacion
+    `;
+    const procedenciaEspecificaResult = await query(procedenciaEspecificaQuery);
+
+    // Contar específicamente Instagram, Facebook, Página Web y WhatsApp este mes
+    const procedenciaEspecificaEsteMesQuery = `
+      SELECT 
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%instagram%' THEN 1 END) as instagram,
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%facebook%' OR LOWER(procedencia) LIKE '%fb%' THEN 1 END) as facebook,
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%pagina%' OR LOWER(procedencia) LIKE '%web%' OR LOWER(procedencia) LIKE '%sitio%' THEN 1 END) as pagina_web,
+        COUNT(CASE WHEN LOWER(procedencia) LIKE '%whatsapp%' OR LOWER(procedencia) LIKE '%wsp%' OR LOWER(procedencia) LIKE '%wa%' THEN 1 END) as whatsapp,
+        COUNT(CASE WHEN procedencia IS NULL OR procedencia = '' THEN 1 END) as sin_especificar
+      FROM cotizacion
+      WHERE DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE)
+    `;
+    const procedenciaEspecificaEsteMesResult = await query(procedenciaEspecificaEsteMesQuery);
+
     res.json({
       success: true,
       data: {
         ...statsResult.rows[0],
         porMes: statsPorMesResult.rows,
         isapresEsteMes: isapresEsteMesResult.rows,
-        clinicasEsteMes: clinicasEsteMesResult.rows
+        clinicasEsteMes: clinicasEsteMesResult.rows,
+        procedenciaTotal: procedenciaTotalResult.rows,
+        procedenciaEsteMes: procedenciaEsteMesResult.rows,
+        procedenciaEstaSemana: procedenciaEstaSemanaResult.rows,
+        procedenciaEspecifica: procedenciaEspecificaResult.rows[0],
+        procedenciaEspecificaEsteMes: procedenciaEspecificaEsteMesResult.rows[0]
       }
     });
 
@@ -1075,6 +1151,14 @@ const obtenerOpcionesFiltros = async (req, res) => {
       ORDER BY clinica
     `);
 
+    // Obtener procedencias únicas
+    const procedenciasResult = await query(`
+      SELECT DISTINCT procedencia 
+      FROM cotizacion 
+      WHERE procedencia IS NOT NULL AND procedencia != ''
+      ORDER BY procedencia
+    `);
+
     // Estados disponibles
     const estados = [
       { value: 'pendiente', label: 'Pendiente' },
@@ -1089,6 +1173,7 @@ const obtenerOpcionesFiltros = async (req, res) => {
       data: {
         isapres: isapresResult.rows.map(row => row.isapre),
         clinicas: clinicasResult.rows.map(row => row.clinica),
+        procedencias: procedenciasResult.rows.map(row => row.procedencia),
         estados: estados
       }
     });
@@ -1131,6 +1216,44 @@ const sendEmail = async (emailData) => {
   }
 };
 
+// Eliminar cotización
+const eliminarCotizacion = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verificar si la cotización existe usando cotizacion_id
+    const existingCotizacion = await query('SELECT id, cotizacion_id, nombre, email FROM cotizacion WHERE cotizacion_id = $1', [id]);
+    if (existingCotizacion.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cotización no encontrada'
+      });
+    }
+
+    const cotizacion = existingCotizacion.rows[0];
+
+    // Eliminar cotización usando el id interno
+    await query('DELETE FROM cotizacion WHERE id = $1', [cotizacion.id]);
+
+    res.json({
+      success: true,
+      message: 'Cotización eliminada exitosamente',
+      data: {
+        cotizacion_id: cotizacion.cotizacion_id,
+        nombre: cotizacion.nombre,
+        email: cotizacion.email
+      }
+    });
+
+  } catch (error) {
+    console.error('Error eliminando cotización:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
 module.exports = {
   crearCotizacion,
   crearCotizacionAdmin,
@@ -1143,5 +1266,6 @@ module.exports = {
   actualizarCotizacion,
   actualizarCotizacionValidation,
   testUpdate,
-  actualizarCotizacionSimple
+  actualizarCotizacionSimple,
+  eliminarCotizacion
 }; 

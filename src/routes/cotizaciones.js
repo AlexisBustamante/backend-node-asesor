@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { crearCotizacion, crearCotizacionAdmin, obtenerCotizaciones, obtenerCotizacionPorId, consultarEstadoCotizacion, actualizarEstadoCotizacion, obtenerOpcionesFiltros, obtenerEstadisticas, actualizarCotizacion, actualizarCotizacionValidation } = require('../controllers/cotizacionController');
+const { crearCotizacion, crearCotizacionAdmin, obtenerCotizaciones, obtenerCotizacionPorId, consultarEstadoCotizacion, actualizarEstadoCotizacion, obtenerOpcionesFiltros, obtenerEstadisticas, actualizarCotizacion, actualizarCotizacionValidation, eliminarCotizacion } = require('../controllers/cotizacionController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 
 // Rutas públicas
@@ -16,5 +16,6 @@ router.get('/:id', authenticateToken, requireRole('admin'), obtenerCotizacionPor
 router.post('/admin', authenticateToken, requireRole('admin'), crearCotizacionAdmin);
 router.put('/:id/estado', authenticateToken, requireRole('admin'), actualizarEstadoCotizacion);
 router.put('/:id', authenticateToken, requireRole('admin'), actualizarCotizacionValidation, actualizarCotizacion);
+router.delete('/:id', authenticateToken, requireRole('admin'), eliminarCotizacion);
 
 module.exports = router; 

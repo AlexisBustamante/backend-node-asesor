@@ -5,11 +5,13 @@ const router = express.Router();
 const authRoutes = require('./auth');
 const userRoutes = require('./users');
 const cotizacionRoutes = require('./cotizaciones');
+const comentarioRoutes = require('./comentarios');
 
 // Configurar rutas
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/cotizaciones', cotizacionRoutes);
+router.use('/comentarios', comentarioRoutes);
 
 // Ruta de salud del servidor (con prefijo /api)
 router.get('/health', (req, res) => {

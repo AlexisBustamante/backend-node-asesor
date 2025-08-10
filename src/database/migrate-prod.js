@@ -60,6 +60,25 @@ const runMigrations = async () => {
     `);
     console.log('✅ Tabla cotizacion creada/verificada');
 
+    // Crear tabla de comentarios si no existe
+    await query(`
+      CREATE TABLE IF NOT EXISTS comentarios (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(100) NOT NULL,
+        estrellas INTEGER NOT NULL CHECK (estrellas >= 1 AND estrellas <= 5),
+        comentario TEXT NOT NULL,
+        ver BOOLEAN DEFAULT false,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Tabla comentarios creada/verificada');
+
+    // Crear índices para comentarios
+    await query(`CREATE INDEX IF NOT EXISTS idx_comentarios_ver ON comentarios(ver);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_comentarios_fecha ON comentarios(fecha_creacion);`);
+    console.log('✅ Índices de comentarios creados/verificados');
+
     // Actualizar tabla cotizacion con nuevos campos si es necesario
     await updateCotizacionTable();
 

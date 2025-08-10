@@ -642,6 +642,74 @@ Permite a los administradores actualizar el estado de una cotización.
 }
 ```
 
+### 5. Obtener Estadísticas (Administradores)
+
+**GET** `/cotizaciones/estadisticas`
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Obtiene estadísticas detalladas de las cotizaciones, incluyendo análisis por procedencia.
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "total_cotizaciones": 128,
+    "pendientes": 15,
+    "en_revision": 8,
+    "contactados": 25,
+    "cotizados": 45,
+    "cerrados": 35,
+    "cotizaciones_este_mes": 30,
+    "cotizaciones_esta_semana": 8,
+    "cotizaciones_hoy": 2,
+    "porMes": [...],
+    "isapresEsteMes": [...],
+    "clinicasEsteMes": [...],
+    "procedenciaTotal": [
+      {
+        "procedencia": "Instagram",
+        "cantidad": 45
+      },
+      {
+        "procedencia": "Facebook",
+        "cantidad": 32
+      }
+    ],
+    "procedenciaEsteMes": [...],
+    "procedenciaEstaSemana": [...],
+    "procedenciaEspecifica": {
+      "instagram": 45,
+      "facebook": 32,
+      "pagina_web": 28,
+      "whatsapp": 15,
+      "sin_especificar": 8
+    },
+    "procedenciaEspecificaEsteMes": {
+      "instagram": 12,
+      "facebook": 8,
+      "pagina_web": 5,
+      "whatsapp": 3,
+      "sin_especificar": 2
+    }
+  }
+}
+```
+
+**Estadísticas de Procedencia:**
+- **procedenciaTotal**: Lista de todas las procedencias con sus cantidades
+- **procedenciaEsteMes**: Procedencias del mes actual
+- **procedenciaEstaSemana**: Procedencias de la última semana
+- **procedenciaEspecifica**: Contadores específicos para Instagram, Facebook, Página Web, WhatsApp
+- **procedenciaEspecificaEsteMes**: Contadores específicos del mes actual
+
+**Detección Automática:**
+- **Instagram**: Detecta "instagram" (case insensitive)
+- **Facebook**: Detecta "facebook" o "fb" (case insensitive)
+- **Página Web**: Detecta "pagina", "web" o "sitio" (case insensitive)
+- **WhatsApp**: Detecta "whatsapp", "wsp" o "wa" (case insensitive)
+
 ---
 
 ## 🔧 Endpoints de Utilidad

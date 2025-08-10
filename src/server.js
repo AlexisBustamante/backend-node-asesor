@@ -24,15 +24,24 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuración de rate limiting
+const isDevelopment = process.env.NODE_ENV !== 'production';
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutos
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // máximo 100 requests por ventana
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || (isDevelopment ? 1 * 60 * 1000 : 15 * 60 * 1000), // 1 min en dev, 15 min en prod
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || (isDevelopment ? 1000 : 100), // 1000 requests en dev, 100 en prod
   message: {
     success: false,
     message: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Saltar rate limiting para ciertas rutas en desarrollo
+    if (isDevelopment) {
+      return req.path.startsWith('/api/auth/profile') || 
+             req.path.startsWith('/api/auth/refresh-token');
+    }
+    return false;
+  }
 });
 
 // Configuración de CORS (DEBE IR PRIMERO)
@@ -107,8 +116,35 @@ app.use(compression());
 // Middleware de logging
 app.use(morgan('combined'));
 
-// Middleware de rate limiting
-app.use(limiter);
+// Rate limiting específico para rutas de autenticación (más permisivo)
+const authLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minuto
+  max: 50, // 50 requests por minuto para auth
+  message: {
+    success: false,
+    message: 'Demasiadas solicitudes de autenticación, intenta de nuevo más tarde'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiting general (más restrictivo)
+const generalLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || (isDevelopment ? 1 * 60 * 1000 : 15 * 60 * 1000),
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || (isDevelopment ? 1000 : 100),
+  message: {
+    success: false,
+    message: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Aplicar rate limiting específico a rutas de autenticación
+app.use('/api/auth', authLimiter);
+
+// Aplicar rate limiting general al resto
+app.use(generalLimiter);
 
 // Middleware para parsear JSON
 app.use(express.json({ limit: '10mb' }));
