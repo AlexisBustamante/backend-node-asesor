@@ -73,6 +73,9 @@ const actualizarCotizacionValidation = [
 // Crear nueva cotización (pública - con emails)
 const crearCotizacion = async (req, res) => {
   try {
+    // Obtener id_propietario del request (agregado por middleware)
+    const idPropietario = req.idPropietario || 1;
+    
     // Mapear los campos del frontend a los nombres usados internamente
     const {
       nombre,
@@ -143,11 +146,11 @@ const crearCotizacion = async (req, res) => {
     // Insertar cotización en la base de datos
     const result = await query(`
       INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
-                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia, id_propietario)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id, cotizacion_id, nombre, apellidos, email, fecha_envio
     `, [cotizacionId, nombre, apellidos, edad, telefono, email, isapre, 
-        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia]);
+        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia, idPropietario]);
 
     const cotizacion = result.rows[0];
 
@@ -245,6 +248,9 @@ const crearCotizacion = async (req, res) => {
 // Crear nueva cotización desde panel de administración (sin emails)
 const crearCotizacionAdmin = async (req, res) => {
   try {
+    // Obtener id_propietario del request (agregado por middleware)
+    const idPropietario = req.idPropietario || 1;
+    
     // Mapear los campos del frontend a los nombres usados internamente
     const {
       nombre,
@@ -315,11 +321,11 @@ const crearCotizacionAdmin = async (req, res) => {
     // Insertar cotización en la base de datos
     const result = await query(`
       INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
-                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia, id_propietario)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id, cotizacion_id, nombre, apellidos, email, fecha_envio
     `, [cotizacionId, nombre, apellidos, edad, telefono, email, isapre, 
-        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia]);
+        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia, idPropietario]);
 
     const cotizacion = result.rows[0];
 
@@ -348,6 +354,9 @@ const crearCotizacionAdmin = async (req, res) => {
 // Obtener todas las cotizaciones (para administradores)
 const obtenerCotizaciones = async (req, res) => {
   try {
+    // Obtener id_propietario del request (agregado por middleware)
+    const idPropietario = req.idPropietario || 1;
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
@@ -362,6 +371,11 @@ const obtenerCotizaciones = async (req, res) => {
     let whereConditions = [];
     let queryParams = [];
     let paramCount = 0;
+
+    // 🏠 Filtro obligatorio por propietario
+    paramCount++;
+    whereConditions.push(`c.id_propietario = $${paramCount}`);
+    queryParams.push(idPropietario);
 
     // Filtro de búsqueda
     if (search) {
@@ -1220,9 +1234,13 @@ const sendEmail = async (emailData) => {
 const eliminarCotizacion = async (req, res) => {
   try {
     const { id } = req.params;
+    const idPropietario = req.idPropietario || 1;
 
-    // Verificar si la cotización existe usando cotizacion_id
-    const existingCotizacion = await query('SELECT id, cotizacion_id, nombre, email FROM cotizacion WHERE cotizacion_id = $1', [id]);
+    // Verificar si la cotización existe usando cotizacion_id y pertenece al propietario
+    const existingCotizacion = await query(
+      'SELECT id, cotizacion_id, nombre, email FROM cotizacion WHERE cotizacion_id = $1 AND id_propietario = $2', 
+      [id, idPropietario]
+    );
     if (existingCotizacion.rows.length === 0) {
       return res.status(404).json({
         success: false,

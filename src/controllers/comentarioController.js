@@ -70,14 +70,17 @@ const crearComentario = async (req, res) => {
       });
     }
 
+    // Obtener id_propietario del request (agregado por middleware)
+    const idPropietario = req.idPropietario || 1;
+    
     const { nombre, estrellas, comentario } = req.body;
 
     // Insertar comentario en la base de datos (por defecto ver = false)
     const result = await query(`
-      INSERT INTO comentarios (nombre, estrellas, comentario, ver)
-      VALUES ($1, $2, $3, false)
+      INSERT INTO comentarios (nombre, estrellas, comentario, ver, id_propietario)
+      VALUES ($1, $2, $3, false, $4)
       RETURNING id, nombre, estrellas, comentario, ver, fecha_creacion
-    `, [nombre, estrellas, comentario]);
+    `, [nombre, estrellas, comentario, idPropietario]);
 
     const comentarioCreado = result.rows[0];
 
@@ -144,6 +147,9 @@ const crearComentarioAdmin = async (req, res) => {
 // Obtener comentarios públicos (solo los que tienen ver = true)
 const obtenerComentariosPublicos = async (req, res) => {
   try {
+    // Obtener id_propietario del request (agregado por middleware)
+    const idPropietario = req.idPropietario || 1;
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
@@ -152,9 +158,9 @@ const obtenerComentariosPublicos = async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM comentarios
-      WHERE ver = true
+      WHERE ver = true AND id_propietario = $1
     `;
-    const countResult = await query(countQuery);
+    const countResult = await query(countQuery, [idPropietario]);
     const total = parseInt(countResult.rows[0].total);
 
     // Query principal para obtener comentarios públicos
@@ -166,20 +172,20 @@ const obtenerComentariosPublicos = async (req, res) => {
         comentario, 
         fecha_creacion
       FROM comentarios
-      WHERE ver = true
+      WHERE ver = true AND id_propietario = $1
       ORDER BY fecha_creacion DESC
-      LIMIT $1 OFFSET $2
+      LIMIT $2 OFFSET $3
     `;
     
-    const result = await query(mainQuery, [limit, offset]);
+    const result = await query(mainQuery, [idPropietario, limit, offset]);
 
     // Calcular promedio de estrellas
     const avgQuery = `
       SELECT AVG(estrellas) as promedio_estrellas
       FROM comentarios
-      WHERE ver = true
+      WHERE ver = true AND id_propietario = $1
     `;
-    const avgResult = await query(avgQuery);
+    const avgResult = await query(avgQuery, [idPropietario]);
     const promedioEstrellas = parseFloat(avgResult.rows[0].promedio_estrellas) || 0;
 
     res.json({
@@ -211,6 +217,9 @@ const obtenerComentariosPublicos = async (req, res) => {
 // Obtener todos los comentarios (para administradores)
 const obtenerComentarios = async (req, res) => {
   try {
+    // Obtener id_propietario del request (agregado por middleware)
+    const idPropietario = req.idPropietario || 1;
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
@@ -221,6 +230,11 @@ const obtenerComentarios = async (req, res) => {
     let whereConditions = [];
     let queryParams = [];
     let paramCount = 0;
+
+    // 🏠 Filtro obligatorio por propietario
+    paramCount++;
+    whereConditions.push(`id_propietario = $${paramCount}`);
+    queryParams.push(idPropietario);
 
     // Filtro de búsqueda
     if (search) {
