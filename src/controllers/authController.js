@@ -75,6 +75,25 @@ const newPasswordValidation = [
     })
 ];
 
+// Validaciones para cambio de contraseña
+const changePasswordValidation = [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('La contraseña actual es requerida'),
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('La nueva contraseña debe tener al menos 8 caracteres')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('La nueva contraseña debe contener al menos una mayúscula, una minúscula y un número'),
+  body('confirmNewPassword')
+    .custom((value, { req }) => {
+      if (value !== req.body.newPassword) {
+        throw new Error('Las nuevas contraseñas no coinciden');
+      }
+      return true;
+    })
+];
+
 // Registrar nuevo usuario
 const register = async (req, res) => {
   try {
@@ -584,11 +603,85 @@ const getProfile = async (req, res) => {
   }
 };
 
+// Cambiar contraseña del usuario
+const changePassword = async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    // Obtener la contraseña actual del usuario
+    const userResult = await query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    const currentHashedPassword = userResult.rows[0].password_hash ;
+
+    // Verificar que la contraseña actual sea correcta
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, currentHashedPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'La contraseña actual es incorrecta'
+      });
+    }
+
+    // Verificar que la nueva contraseña sea diferente a la actual
+    const isNewPasswordSame = await bcrypt.compare(newPassword, currentHashedPassword);
+    if (isNewPasswordSame) {
+      return res.status(400).json({
+        success: false,
+        message: 'La nueva contraseña debe ser diferente a la actual'
+      });
+    }
+
+    // Encriptar la nueva contraseña
+    const saltRounds = 12;
+    const newHashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Actualizar la contraseña en la base de datos
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHashedPassword, userId]);
+
+    // Invalidar todos los tokens de refresco del usuario para forzar un nuevo login
+    try {
+      await deleteAllUserRefreshTokens(userId);
+    } catch (tokenError) {
+      console.log('⚠️ Error limpiando tokens (puede ser normal):', tokenError.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Contraseña cambiada exitosamente. Por seguridad, tu sesión ha sido cerrada.'
+    });
+
+  } catch (error) {
+    console.error('Error cambiando contraseña:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
 module.exports = {
   registerValidation,
   loginValidation,
   resetPasswordValidation,
   newPasswordValidation,
+  changePasswordValidation,
   register,
   login,
   verifyEmail,
@@ -597,5 +690,6 @@ module.exports = {
   resetPassword,
   refreshToken,
   logout,
-  getProfile
+  getProfile,
+  changePassword
 }; 

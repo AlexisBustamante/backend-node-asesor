@@ -35,5 +35,6 @@ router.post('/refresh-token', authController.refreshToken);
 // Rutas protegidas
 router.post('/logout', authController.logout);
 router.get('/profile', authenticateToken, authController.getProfile);
+router.post('/change-password', authenticateToken, authController.changePasswordValidation, authController.changePassword);
 
 module.exports = router; 
