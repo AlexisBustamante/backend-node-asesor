@@ -24,13 +24,29 @@ const actualizarCotizacionValidation = [
     .withMessage('Formato de teléfono inválido'),
   body('email')
     .optional()
-    .isEmail()
-    .normalizeEmail()
+    .custom((value) => {
+      if (value === '' || value === null || value === undefined) {
+        return true; // Permitir valores vacíos
+      }
+      // Solo validar email si se proporciona un valor
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        throw new Error('Email inválido');
+      }
+      return true;
+    })
     .withMessage('Email inválido'),
   body('isapre')
     .optional()
-    .trim()
-    .isLength({ min: 2, max: 100 })
+    .custom((value) => {
+      if (value === '' || value === null || value === undefined) {
+        return true; // Permitir valores vacíos
+      }
+      if (value.length < 2 || value.length > 100) {
+        throw new Error('La ISAPRE debe tener entre 2 y 100 caracteres');
+      }
+      return true;
+    })
     .withMessage('La ISAPRE debe tener entre 2 y 100 caracteres'),
   body('valor_mensual')
     .optional()
@@ -38,8 +54,15 @@ const actualizarCotizacionValidation = [
     .withMessage('El valor mensual debe ser un número'),
   body('clinica')
     .optional()
-    .trim()
-    .isLength({ min: 2, max: 100 })
+    .custom((value) => {
+      if (value === '' || value === null || value === undefined) {
+        return true; // Permitir valores vacíos
+      }
+      if (value.length < 2 || value.length > 100) {
+        throw new Error('La clínica debe tener entre 2 y 100 caracteres');
+      }
+      return true;
+    })
     .withMessage('La clínica debe tener entre 2 y 100 caracteres'),
   body('renta')
     .optional()
@@ -64,9 +87,14 @@ const actualizarCotizacionValidation = [
     .trim()
     .isLength({ max: 255 })
     .withMessage('La procedencia no puede exceder 255 caracteres'),
+  body('tipo_ingreso')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('El tipo de ingreso no puede exceder 100 caracteres'),
   body('estado')
     .optional()
-    .isIn(['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'])
+    .isIn(['pendiente', 'en_revision', 'contactado', 'cliente_ingresado', 'nunca_respondio', 'cotizado', 'cerrado'])
     .withMessage('Estado no válido')
 ];
 
@@ -87,35 +115,10 @@ const crearCotizacion = async (req, res) => {
       numero_cargas,
       edades_cargas,
       mensaje,
-      procedencia
+      procedencia,
+      tipo_ingreso
     } = req.body;
 
-
-    // Validar campos requeridos (verificando que no estén vacíos)
-    if (!nombre || nombre.trim() === '' || 
-        !edad || edad.toString().trim() === '' || 
-        !telefono || telefono.toString().trim() === '' || 
-        !email || email.trim() === '' || 
-        !isapre || isapre.trim() === '' || 
-        !clinica || clinica.trim() === '' || 
-        !renta || renta.toString().trim() === '' || 
-        !numero_cargas || numero_cargas.toString().trim() === '' || 
-        !edades_cargas || edades_cargas.toString().trim() === '') {
-      
-      return res.status(400).json({
-        success: false,
-        message: 'Todos los campos marcados con * son obligatorios'
-      });
-    }
-
-    // Validar formato de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'El formato del email no es válido'
-      });
-    }
 
     // Validar longitud del nombre
     if (nombre.trim().length < 2 || nombre.trim().length > 150) {
@@ -125,55 +128,85 @@ const crearCotizacion = async (req, res) => {
       });
     }
 
-    // Generar ID único para la cotización (formato: COT-YYYYMMDD-XXXX)
+    // Validar campos obligatorios
+    if (!email || email.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'El email es obligatorio'
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'El formato del email no es válido'
+      });
+    }
+
+    // Asignar valores por defecto para campos opcionales
+    const edadNum = edad && edad.toString().trim() !== '' ? parseInt(edad) || 0 : null;
+    const telefonoFinal = telefono && telefono.toString().trim() !== '' ? telefono.toString().trim() : '';
+    const rentaNum = renta && renta.toString().trim() !== '' ? parseInt(renta) || 0 : 0;
+    const numeroCargasNum = numero_cargas && numero_cargas.toString().trim() !== '' ? parseInt(numero_cargas) || 0 : 0;
+    const valorMensualNum = valor_mensual && valor_mensual.toString().trim() !== '' ? parseInt(valor_mensual) || 0 : 0;
+
+    // Campos de texto con valores por defecto
+    const apellidosFinal = apellidos && apellidos.toString().trim() !== '' ? apellidos.toString().trim() : '';
+    const isapreFinal = isapre && isapre.toString().trim() !== '' ? isapre.toString().trim() : '';
+    const clinicaFinal = clinica && clinica.toString().trim() !== '' ? clinica.toString().trim() : '';
+    const edadesCargasFinal = edades_cargas && edades_cargas.toString().trim() !== '' ? edades_cargas.toString().trim() : '';
+    const mensajeFinal = mensaje && mensaje.toString().trim() !== '' ? mensaje.toString().trim() : '';
+    const procedenciaFinal = procedencia && procedencia.toString().trim() !== '' ? procedencia.toString().trim() : '';
+    const tipoIngresoFinal = tipo_ingreso && tipo_ingreso.toString().trim() !== '' ? tipo_ingreso.toString().trim() : '';
+
+    // Limpiar email
+    const emailFinal = email.trim();
+
+    // Generar ID único temporal basado en timestamp
     const fecha = new Date();
     const fechaStr = fecha.getFullYear().toString() + 
                     (fecha.getMonth() + 1).toString().padStart(2, '0') + 
-                    fecha.getDate().toString().padStart(2, '0');
-    
-    // Obtener el siguiente número de cotización del día
-    const countResult = await query(`
-      SELECT COUNT(*) as count 
-      FROM cotizacion 
-      WHERE DATE(fecha_envio) = CURRENT_DATE
-    `);
-    const numeroCotizacion = (countResult.rows[0].count + 1).toString().padStart(4, '0');
-    const cotizacionId = `COT-${fechaStr}-${numeroCotizacion}`;
+                    (fecha.getDate()).toString().padStart(2, '0');
+    const timestamp = Date.now().toString().slice(-6); // Últimos 6 dígitos del timestamp
+    const cotizacionId = `COT-${fechaStr}-${timestamp}`;
 
-    // Insertar cotización en la base de datos
+    // Insertar cotización en la base de datos con el cotizacion_id generado
     const result = await query(`
-      INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
-                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      RETURNING id, cotizacion_id, nombre, apellidos, email, fecha_envio
-    `, [cotizacionId, nombre, apellidos, edad, telefono, email, isapre, 
-        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia]);
+      INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre,
+                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia, tipo_ingreso)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING id, nombre, apellidos, email, fecha_envio
+    `, [cotizacionId, nombre, apellidosFinal, edadNum, telefonoFinal, emailFinal, isapreFinal,
+        valorMensualNum, clinicaFinal, rentaNum, numeroCargasNum, edadesCargasFinal, mensajeFinal, procedenciaFinal, tipoIngresoFinal]);
 
     const cotizacion = result.rows[0];
-
+    
     // Preparar datos para el template del email del cliente
     const emailClienteData = {
       cotizacion_id: cotizacionId,
       nombre,
-      apellidos,
-      edad,
-      telefono,
-      email,
-      isapre,
-      valor_mensual,
-      clinica,
-      renta,
-      numero_cargas,
-      edades_cargas,
-      mensaje,
-      procedencia
+      apellidos: apellidosFinal,
+      edad: edadNum,
+      telefono: telefonoFinal,
+      email: emailFinal,
+      isapre: isapreFinal,
+      valor_mensual: valorMensualNum,
+      clinica: clinicaFinal,
+      renta: rentaNum,
+      numero_cargas: numeroCargasNum,
+      edades_cargas: edadesCargasFinal,
+      mensaje: mensajeFinal,
+      procedencia: procedenciaFinal,
+      tipo_ingreso: tipoIngresoFinal
     };
 
     // Renderizar email del cliente
     const emailClienteHtml = await renderEmailCliente(emailClienteData);
 
     const emailCliente = {
-      to: email,
+      to: emailFinal,
       subject: `¡Tu solicitud de cotización ha sido recibida! [${cotizacionId}] - Pamela Cossio Asesoría`,
       html: emailClienteHtml
     };
@@ -193,18 +226,19 @@ const crearCotizacion = async (req, res) => {
       const emailAdminData = {
         cotizacion_id: cotizacionId,
         nombre,
-        apellidos,
-        edad,
-        telefono,
-        email,
-        isapre,
-        valor_mensual,
-        clinica,
-        renta,
-        numero_cargas,
-        edades_cargas,
-        mensaje,
-        procedencia,
+        apellidos: apellidosFinal,
+        edad: edadNum,
+        telefono: telefonoFinal,
+        email: emailFinal,
+        isapre: isapreFinal,
+        valor_mensual: valorMensualNum,
+        clinica: clinicaFinal,
+        renta: rentaNum,
+        numero_cargas: numeroCargasNum,
+        edades_cargas: edadesCargasFinal,
+        mensaje: mensajeFinal,
+        procedencia: procedenciaFinal,
+        tipo_ingreso: tipoIngresoFinal,
         fecha_envio: new Date().toLocaleString('es-CL')
       };
 
@@ -259,35 +293,9 @@ const crearCotizacionAdmin = async (req, res) => {
       numero_cargas,
       edades_cargas,
       mensaje,
-      procedencia
+      procedencia,
+      tipo_ingreso
     } = req.body;
-
-    // Validar campos requeridos (verificando que no estén vacíos)
-    if (!nombre || nombre.trim() === '' || 
-        !edad || edad.toString().trim() === '' || 
-        !telefono || telefono.toString().trim() === '' || 
-        !isapre || isapre.trim() === '' || 
-        !clinica || clinica.trim() === '' || 
-        !renta || renta.toString().trim() === '' || 
-        !numero_cargas || numero_cargas.toString().trim() === '' || 
-        !edades_cargas || edades_cargas.toString().trim() === '') {
-      
-      return res.status(400).json({
-        success: false,
-        message: 'Todos los campos marcados con * son obligatorios'
-      });
-    }
-
-    // Validar formato de email solo si se proporciona
-    if (email && email.trim() !== '') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({
-          success: false,
-          message: 'El formato del email no es válido'
-        });
-      }
-    }
 
     // Validar longitud del nombre
     if (nombre.trim().length < 2 || nombre.trim().length > 150) {
@@ -297,32 +305,54 @@ const crearCotizacionAdmin = async (req, res) => {
       });
     }
 
-    // Generar ID único para la cotización (formato: COT-YYYYMMDD-XXXX)
+    // Validar formato de email solo si se proporciona
+    let emailFinal = '';
+    if (email && email.trim() !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({
+          success: false,
+          message: 'El formato del email no es válido'
+        });
+      }
+      emailFinal = email.trim();
+    }
+
+    // Asignar valores por defecto para campos opcionales
+    const edadNum = edad && edad.toString().trim() !== '' ? parseInt(edad) || 0 : null;
+    const telefonoFinal = telefono && telefono.toString().trim() !== '' ? telefono.toString().trim() : '';
+    const rentaNum = renta && renta.toString().trim() !== '' ? parseInt(renta) || 0 : 0;
+    const numeroCargasNum = numero_cargas && numero_cargas.toString().trim() !== '' ? parseInt(numero_cargas) || 0 : 0;
+    const valorMensualNum = valor_mensual && valor_mensual.toString().trim() !== '' ? parseInt(valor_mensual) || 0 : 0;
+
+    // Campos de texto con valores por defecto
+    const apellidosFinal = apellidos && apellidos.toString().trim() !== '' ? apellidos.toString().trim() : '';
+    const isapreFinal = isapre && isapre.toString().trim() !== '' ? isapre.toString().trim() : '';
+    const clinicaFinal = clinica && clinica.toString().trim() !== '' ? clinica.toString().trim() : '';
+    const edadesCargasFinal = edades_cargas && edades_cargas.toString().trim() !== '' ? edades_cargas.toString().trim() : '';
+    const mensajeFinal = mensaje && mensaje.toString().trim() !== '' ? mensaje.toString().trim() : '';
+    const procedenciaFinal = procedencia && procedencia.toString().trim() !== '' ? procedencia.toString().trim() : '';
+    const tipoIngresoFinal = tipo_ingreso && tipo_ingreso.toString().trim() !== '' ? tipo_ingreso.toString().trim() : '';
+
+    // Generar ID único temporal basado en timestamp
     const fecha = new Date();
     const fechaStr = fecha.getFullYear().toString() + 
                     (fecha.getMonth() + 1).toString().padStart(2, '0') + 
-                    fecha.getDate().toString().padStart(2, '0');
-    
-    // Obtener el siguiente número de cotización del día
-    const countResult = await query(`
-      SELECT COUNT(*) as count 
-      FROM cotizacion 
-      WHERE DATE(fecha_envio) = CURRENT_DATE
-    `);
-    const numeroCotizacion = (countResult.rows[0].count + 1).toString().padStart(4, '0');
-    const cotizacionId = `COT-${fechaStr}-${numeroCotizacion}`;
+                    (fecha.getDate()).toString().padStart(2, '0');
+    const timestamp = Date.now().toString().slice(-6); // Últimos 6 dígitos del timestamp
+    const cotizacionId = `COT-${fechaStr}-${timestamp}`;
 
-    // Insertar cotización en la base de datos
+    // Insertar cotización en la base de datos con el cotizacion_id generado
     const result = await query(`
-      INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
-                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      RETURNING id, cotizacion_id, nombre, apellidos, email, fecha_envio
-    `, [cotizacionId, nombre, apellidos, edad, telefono, email, isapre, 
-        valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia]);
+      INSERT INTO cotizacion (cotizacion_id, nombre, apellidos, edad, telefono, email, isapre,
+                             valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, procedencia, tipo_ingreso)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING id, nombre, apellidos, email, fecha_envio
+    `, [cotizacionId, nombre, apellidosFinal, edadNum, telefonoFinal, emailFinal, isapreFinal,
+        valorMensualNum, clinicaFinal, rentaNum, numeroCargasNum, edadesCargasFinal, mensajeFinal, procedenciaFinal, tipoIngresoFinal]);
 
     const cotizacion = result.rows[0];
-
+    
     res.status(201).json({
       success: true,
       message: 'Cotización creada exitosamente desde el panel de administración.',
@@ -356,6 +386,7 @@ const obtenerCotizaciones = async (req, res) => {
     const isapre = req.query.isapre || '';
     const clinica = req.query.clinica || '';
     const procedencia = req.query.procedencia || '';
+    const tipo_ingreso = req.query.tipo_ingreso || '';
     const fechaDesde = req.query.fechaDesde || '';
     const fechaHasta = req.query.fechaHasta || '';
 
@@ -396,6 +427,13 @@ const obtenerCotizaciones = async (req, res) => {
       paramCount++;
       whereConditions.push(`c.procedencia ILIKE $${paramCount}`);
       queryParams.push(`%${procedencia}%`);
+    }
+
+    // Filtro por tipo de ingreso
+    if (tipo_ingreso) {
+      paramCount++;
+      whereConditions.push(`c.tipo_ingreso ILIKE $${paramCount}`);
+      queryParams.push(`%${tipo_ingreso}%`);
     }
 
     // Filtro por fecha desde
@@ -441,6 +479,7 @@ const obtenerCotizaciones = async (req, res) => {
         c.edades_cargas, 
         c.mensaje, 
         c.procedencia,
+        c.tipo_ingreso,
         c.estado, 
         c.fecha_envio
       FROM cotizacion c
@@ -476,6 +515,8 @@ const obtenerCotizaciones = async (req, res) => {
         COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
         COUNT(CASE WHEN estado = 'en_revision' THEN 1 END) as en_revision,
         COUNT(CASE WHEN estado = 'contactado' THEN 1 END) as contactados,
+        COUNT(CASE WHEN estado = 'cliente_ingresado' THEN 1 END) as cliente_ingresado,
+        COUNT(CASE WHEN estado = 'nunca_respondio' THEN 1 END) as nunca_respondio,
         COUNT(CASE WHEN estado = 'cotizado' THEN 1 END) as cotizados,
         COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados
       FROM cotizacion 
@@ -589,7 +630,7 @@ const obtenerCotizacionPorId = async (req, res) => {
     const result = await query(`
       SELECT id, cotizacion_id, nombre, apellidos, edad, telefono, email, isapre, 
              valor_mensual, clinica, renta, numero_cargas, edades_cargas, mensaje, 
-             procedencia, estado, fecha_envio
+             procedencia, tipo_ingreso, estado, fecha_envio
       FROM cotizacion 
       WHERE id = $1
     `, [id]);
@@ -649,6 +690,7 @@ const actualizarCotizacion = async (req, res) => {
       edades_cargas,
       mensaje,
       procedencia,
+      tipo_ingreso,
       estado
     } = req.body;
 
@@ -675,7 +717,7 @@ const actualizarCotizacion = async (req, res) => {
     if (apellidos !== undefined) {
       paramCount++;
       updateFields.push(`apellidos = $${paramCount}`);
-      queryParams.push(apellidos);
+      queryParams.push(apellidos); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (edad !== undefined) {
@@ -687,19 +729,19 @@ const actualizarCotizacion = async (req, res) => {
     if (telefono !== undefined) {
       paramCount++;
       updateFields.push(`telefono = $${paramCount}`);
-      queryParams.push(telefono);
+      queryParams.push(telefono); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (email !== undefined) {
       paramCount++;
       updateFields.push(`email = $${paramCount}`);
-      queryParams.push(email);
+      queryParams.push(email); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (isapre !== undefined) {
       paramCount++;
       updateFields.push(`isapre = $${paramCount}`);
-      queryParams.push(isapre);
+      queryParams.push(isapre); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (valor_mensual !== undefined) {
@@ -711,7 +753,7 @@ const actualizarCotizacion = async (req, res) => {
     if (clinica !== undefined) {
       paramCount++;
       updateFields.push(`clinica = $${paramCount}`);
-      queryParams.push(clinica);
+      queryParams.push(clinica); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (renta !== undefined) {
@@ -729,24 +771,30 @@ const actualizarCotizacion = async (req, res) => {
     if (edades_cargas !== undefined) {
       paramCount++;
       updateFields.push(`edades_cargas = $${paramCount}`);
-      queryParams.push(edades_cargas);
+      queryParams.push(edades_cargas); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (mensaje !== undefined) {
       paramCount++;
       updateFields.push(`mensaje = $${paramCount}`);
-      queryParams.push(mensaje);
+      queryParams.push(mensaje); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (procedencia !== undefined) {
       paramCount++;
       updateFields.push(`procedencia = $${paramCount}`);
-      queryParams.push(procedencia);
+      queryParams.push(procedencia); // Mantener el valor tal como viene (incluyendo string vacío)
+    }
+
+    if (tipo_ingreso !== undefined) {
+      paramCount++;
+      updateFields.push(`tipo_ingreso = $${paramCount}`);
+      queryParams.push(tipo_ingreso); // Mantener el valor tal como viene (incluyendo string vacío)
     }
 
     if (estado !== undefined) {
       // Validar estado
-      const estadosValidos = ['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'];
+      const estadosValidos = ['pendiente', 'en_revision', 'contactado', 'cliente_ingresado', 'nunca_respondio', 'cotizado', 'cerrado'];
       if (!estadosValidos.includes(estado)) {
         return res.status(400).json({
           success: false,
@@ -776,7 +824,7 @@ const actualizarCotizacion = async (req, res) => {
       WHERE id = $${paramCount}
       RETURNING id, cotizacion_id, nombre, apellidos, edad, telefono, email, 
                 isapre, valor_mensual, clinica, renta, numero_cargas, 
-                edades_cargas, mensaje, procedencia, estado, fecha_envio
+                edades_cargas, mensaje, procedencia, tipo_ingreso, estado, fecha_envio
     `;
 
     console.log('Query de actualización:', updateQuery);
@@ -933,7 +981,7 @@ const actualizarEstadoCotizacion = async (req, res) => {
     console.log('🆔 ID recibido:', id);
     console.log('📊 Estado recibido:', estado);
 
-    const estadosValidos = ['pendiente', 'en_revision', 'contactado', 'cotizado', 'cerrado'];
+    const estadosValidos = ['pendiente', 'en_revision', 'contactado', 'cliente_ingresado', 'nunca_respondio', 'cotizado', 'cerrado'];
     
     if (!estadosValidos.includes(estado)) {
       console.log('❌ Estado no válido:', estado);
@@ -991,6 +1039,8 @@ const obtenerEstadisticas = async (req, res) => {
         COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
         COUNT(CASE WHEN estado = 'en_revision' THEN 1 END) as en_revision,
         COUNT(CASE WHEN estado = 'contactado' THEN 1 END) as contactados,
+        COUNT(CASE WHEN estado = 'cliente_ingresado' THEN 1 END) as cliente_ingresado,
+        COUNT(CASE WHEN estado = 'nunca_respondio' THEN 1 END) as nunca_respondio,
         COUNT(CASE WHEN estado = 'cotizado' THEN 1 END) as cotizados,
         COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados,
         COUNT(CASE WHEN DATE(fecha_envio) >= DATE_TRUNC('month', CURRENT_DATE) THEN 1 END) as cotizaciones_este_mes,
@@ -1008,6 +1058,8 @@ const obtenerEstadisticas = async (req, res) => {
         COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
         COUNT(CASE WHEN estado = 'en_revision' THEN 1 END) as en_revision,
         COUNT(CASE WHEN estado = 'contactado' THEN 1 END) as contactados,
+        COUNT(CASE WHEN estado = 'cliente_ingresado' THEN 1 END) as cliente_ingresado,
+        COUNT(CASE WHEN estado = 'nunca_respondio' THEN 1 END) as nunca_respondio,
         COUNT(CASE WHEN estado = 'cotizado' THEN 1 END) as cotizados,
         COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados
       FROM cotizacion 
@@ -1159,13 +1211,23 @@ const obtenerOpcionesFiltros = async (req, res) => {
       ORDER BY procedencia
     `);
 
+    // Obtener tipos de ingreso únicos
+    const tiposIngresoResult = await query(`
+      SELECT DISTINCT tipo_ingreso 
+      FROM cotizacion 
+      WHERE tipo_ingreso IS NOT NULL AND tipo_ingreso != ''
+      ORDER BY tipo_ingreso
+    `);
+
     // Estados disponibles
     const estados = [
-      { value: 'pendiente', label: 'Pendiente' },
-      { value: 'en_revision', label: 'En Revisión' },
-      { value: 'contactado', label: 'Contactado' },
-      { value: 'cotizado', label: 'Cotizado' },
-      { value: 'cerrado', label: 'Cerrado' }
+      { value: 'pendiente', label: 'Pendiente', description: 'Cotización recibida, pendiente de revisión', icon: '⏳' },
+      { value: 'en_revision', label: 'En Revisión', description: 'Analizando información del cliente', icon: '👁️' },
+      { value: 'contactado', label: 'Contactado', description: 'Cliente contactado para más información', icon: '📞' },
+      { value: 'cliente_ingresado', label: 'Cliente Ingresado', description: 'Cliente ha ingresado al sistema', icon: '👤' },
+      { value: 'nunca_respondio', label: 'Nunca Respondió', description: 'Cliente no ha respondido a contactos', icon: '❌' },
+      { value: 'cotizado', label: 'Cotizado', description: 'Cotización enviada al cliente', icon: '✅' },
+      { value: 'cerrado', label: 'Cerrado', description: 'Proceso completado o cancelado', icon: '🔒' }
     ];
 
     res.json({
@@ -1174,6 +1236,7 @@ const obtenerOpcionesFiltros = async (req, res) => {
         isapres: isapresResult.rows.map(row => row.isapre),
         clinicas: clinicasResult.rows.map(row => row.clinica),
         procedencias: procedenciasResult.rows.map(row => row.procedencia),
+        tipos_ingreso: tiposIngresoResult.rows.map(row => row.tipo_ingreso),
         estados: estados
       }
     });

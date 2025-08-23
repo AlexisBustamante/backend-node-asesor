@@ -1,217 +1,102 @@
-# 🔄 Solución para Rate Limiting (Error 429)
+# Solución para Error 429 (Too Many Requests) en Logout
 
 ## Problema
+El endpoint `/api/auth/logout` está devolviendo error 429 (Too Many Requests) debido a la configuración restrictiva del rate limiting.
 
-El error `429 (Too Many Requests)` indica que has excedido el límite de solicitudes permitidas por el servidor. Esto es común durante el desarrollo cuando se hacen muchas peticiones rápidas.
+## Causas
+1. **Rate limiting muy restrictivo**: 50 requests por minuto para autenticación
+2. **Logout no exento**: El logout está siendo contado en el rate limiting
+3. **Ventana de tiempo corta**: 1 minuto puede ser insuficiente para operaciones críticas
 
-## ✅ Soluciones Implementadas
+## Soluciones Implementadas
 
-### 1. **Rate Limiting Mejorado**
+### 1. Modificación del Servidor (Recomendado)
+Se modificó `src/server.js` para:
+- Aumentar el límite de 50 a 100 requests por minuto
+- Exentar el logout del rate limiting
+- Hacer el sistema más permisivo para operaciones críticas
 
-Se ha configurado un rate limiting más flexible para desarrollo:
+### 2. Scripts de Reseteo
 
-- **Desarrollo**: 1000 requests por minuto
-- **Producción**: 100 requests por 15 minutos
-- **Autenticación**: 50 requests por minuto (más permisivo)
-
-### 2. **Configuración Específica por Rutas**
-
-```javascript
-// Rate limiting específico para autenticación
-app.use('/api/auth', authLimiter);
-
-// Rate limiting general para el resto
-app.use(generalLimiter);
-```
-
-## 🚀 Soluciones Inmediatas
-
-### Opción 1: Reiniciar el Servidor (Recomendado)
-
+#### reset-rate-limit-auth.js
+Configura un nuevo rate limiter más permisivo:
 ```bash
-# Detener el servidor (Ctrl+C)
-# Luego reiniciar
-npm start
+node reset-rate-limit-auth.js
 ```
 
-### Opción 2: Usar el Script de Reinicio
-
+#### reset-rate-limit-simple.js
+Intenta resetear el rate limiting inmediatamente:
 ```bash
 node reset-rate-limit-simple.js
 ```
 
-### Opción 3: Limpiar Redis (Si usas Redis)
+## Soluciones Inmediatas
 
+### Opción 1: Esperar
+- El rate limiting se resetea automáticamente cada minuto
+- Espera 1-2 minutos y vuelve a intentar
+
+### Opción 2: Reiniciar Servidor
 ```bash
-# Instalar redis si no está instalado
-npm install redis
-
-# Ejecutar script de limpieza
-node reset-rate-limit.js
+# Detener servidor (Ctrl+C)
+# Reiniciar
+npm start
 ```
 
-## 🔧 Configuración Personalizada
+### Opción 3: Usar Script de Reseteo
+```bash
+node reset-rate-limit-simple.js
+```
+
+## Configuración Recomendada
 
 ### Variables de Entorno
-
-Puedes ajustar el rate limiting modificando estas variables en tu `.env`:
-
 ```env
-# Rate limiting general
-RATE_LIMIT_WINDOW_MS=60000        # Ventana de tiempo en ms (1 minuto)
-RATE_LIMIT_MAX_REQUESTS=1000      # Máximo de requests por ventana
-
-# Ambiente
-NODE_ENV=development              # Para desarrollo más permisivo
+# Rate limiting más permisivo para desarrollo
+RATE_LIMIT_WINDOW_MS=60000        # 1 minuto
+RATE_LIMIT_MAX_REQUESTS=200       # 200 requests por minuto
 ```
 
-### Configuración por Ambiente
-
+### Configuración del Servidor
 ```javascript
-const isDevelopment = process.env.NODE_ENV !== 'production';
-
-// Desarrollo: 1000 requests por minuto
-// Producción: 100 requests por 15 minutos
-```
-
-## 📊 Monitoreo
-
-### Verificar Rate Limiting
-
-Puedes verificar el estado del rate limiting revisando los headers de respuesta:
-
-```
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 999
-X-RateLimit-Reset: 1640995200
-```
-
-### Logs del Servidor
-
-El servidor registra cuando se alcanza el límite:
-
-```
-Rate limit exceeded for IP: ::ffff:127.0.0.1
-```
-
-## 🛠️ Soluciones para el Frontend
-
-### 1. **Implementar Retry con Backoff**
-
-```javascript
-async function apiCallWithRetry(url, options, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(url, options);
-      
-      if (response.status === 429) {
-        // Esperar antes de reintentar
-        const waitTime = Math.pow(2, i) * 1000; // Exponential backoff
-        console.log(`Rate limited, waiting ${waitTime}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
-      }
-      
-      return response;
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-    }
+const authLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,        // 1 minuto
+  max: 200,                        // 200 requests por minuto
+  skip: (req) => {
+    // Exentar operaciones críticas
+    return req.path === '/logout' || 
+           req.path.endsWith('/logout') ||
+           req.path === '/refresh-token';
   }
-}
+});
 ```
 
-### 2. **Manejar Error 429 en Axios**
+## Prevención
 
-```javascript
-// Interceptor para manejar rate limiting
-axios.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response?.status === 429) {
-      console.log('Rate limited, retrying in 5 seconds...');
-      
-      return new Promise(resolve => {
-        setTimeout(() => {
-          resolve(axios.request(error.config));
-        }, 5000);
-      });
-    }
-    
-    return Promise.reject(error);
-  }
-);
-```
+### 1. Monitoreo
+- Revisar logs del servidor para identificar picos de requests
+- Implementar alertas cuando se alcance el 80% del límite
 
-### 3. **Reducir Frecuencia de Peticiones**
+### 2. Configuración Adaptativa
+- Límites más altos en desarrollo
+- Límites moderados en staging
+- Límites estrictos solo en producción
 
-```javascript
-// En lugar de hacer peticiones cada segundo
-setInterval(() => {
-  // Hacer petición
-}, 1000);
+### 3. Excepciones para Operaciones Críticas
+- Logout siempre debe funcionar
+- Refresh token debe ser confiable
+- Operaciones de seguridad no deben fallar por rate limiting
 
-// Usar un intervalo más largo
-setInterval(() => {
-  // Hacer petición
-}, 5000); // 5 segundos
-```
+## Verificación
+Para verificar que la solución funciona:
 
-## 🔍 Diagnóstico
+1. **Reinicia el servidor**
+2. **Intenta hacer logout**
+3. **Verifica que no hay error 429**
+4. **Revisa los logs del servidor**
 
-### Verificar si es Rate Limiting
-
-1. **Revisar el código de estado**: `429`
-2. **Revisar headers de respuesta**: `X-RateLimit-*`
-3. **Revisar logs del servidor**: Mensajes de rate limit
-
-### Comandos de Diagnóstico
-
-```bash
-# Verificar si Redis está corriendo (si usas Redis)
-redis-cli ping
-
-# Verificar claves de rate limiting
-redis-cli keys "*rate-limit*"
-
-# Limpiar rate limiting manualmente
-redis-cli flushall
-```
-
-## 📝 Prevención
-
-### 1. **Desarrollo**
-
-- Usar rate limiting más permisivo
-- Implementar retry automático en el frontend
-- Monitorear logs del servidor
-
-### 2. **Producción**
-
-- Configurar rate limiting apropiado
-- Implementar caching donde sea posible
-- Usar CDN para recursos estáticos
-
-### 3. **Testing**
-
-- Usar mocks para pruebas unitarias
-- Implementar rate limiting en pruebas de integración
-- Usar herramientas como Artillery para testing de carga
-
-## 🆘 Contacto
-
-Si continúas experimentando problemas con rate limiting:
-
-1. Revisa los logs del servidor
-2. Verifica la configuración de variables de entorno
-3. Considera aumentar los límites temporalmente
-4. Implementa caching para reducir peticiones
-
----
-
-## 📋 Checklist de Solución
-
-- [ ] Reiniciar el servidor
-- [ ] Verificar variables de entorno
-- [ ] Implementar retry en el frontend
-- [ ] Monitorear logs del servidor
-- [ ] Ajustar configuración si es necesario
+## Notas Importantes
+- El rate limiting es una medida de seguridad importante
+- No lo desactives completamente en producción
+- Configura límites apropiados para tu caso de uso
+- Monitorea el comportamiento del sistema regularmente

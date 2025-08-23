@@ -120,19 +120,23 @@ app.use(morgan('combined'));
 // Rate limiting específico para rutas de autenticación (más permisivo)
 const authLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
-  max: 50, // 50 requests por minuto para auth
+  max: 500, // 500 requests por minuto para auth (muy permisivo)
   message: {
     success: false,
     message: 'Demasiadas solicitudes de autenticación, intenta de nuevo más tarde'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Saltar rate limiting para logout específicamente
+    return req.path === '/logout' || req.path.endsWith('/logout');
+  }
 });
 
-// Rate limiting general (más restrictivo)
+// Rate limiting general (más permisivo)
 const generalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || (isDevelopment ? 1 * 60 * 1000 : 15 * 60 * 1000),
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || (isDevelopment ? 1000 : 100),
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || (isDevelopment ? 1 * 60 * 1000 : 5 * 60 * 1000), // 5 min en prod
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || (isDevelopment ? 2000 : 500), // 500 requests en prod, 2000 en dev
   message: {
     success: false,
     message: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde'

@@ -486,6 +486,7 @@ Crea una nueva cotización y envía emails de confirmación al cliente y notific
 
 **Notas importantes:**
 - Se genera automáticamente un ID único legible (formato: `COT-YYYYMMDD-XXXX`)
+- El sistema garantiza IDs únicos incluso con múltiples cotizaciones simultáneas
 - Se envía email de confirmación al cliente
 - Se envía notificación a todos los administradores
 - El ID de cotización aparece en el asunto de ambos emails
